@@ -27,6 +27,7 @@ import {
 import {
   buildSessionBlueprint,
   decodeSessionBlueprint,
+  decodeSessionFromCandle,
   packSessionBlueprint,
   SESSION_MINUTES,
   summarizeSessionBars,
@@ -35,7 +36,7 @@ import {
 const DEFAULT_START_DATE = MARKET_FLOW_CONFIG.startDate || "2026-01-05";
 const MAX_CANDLE_STORE = 12000;
 const BOOTSTRAP_CACHE_KEY = "trade-simulator-bootstrap-v4";
-const BOOTSTRAP_CACHE_VERSION = 5;
+const BOOTSTRAP_CACHE_VERSION = 6;
 
 function parseIsoDate(isoDate) {
   return new Date(`${isoDate}T00:00:00`);
@@ -131,6 +132,15 @@ function previousOpenDate(fromDate, holidaySet) {
   return fromDate;
 }
 
+function nextOpenDate(fromDate, holidaySet) {
+  let cursor = addCalendarDays(fromDate, 1);
+  for (let i = 0; i < 370; i += 1) {
+    if (!isMarketClosedDate(cursor, holidaySet)) return cursor;
+    cursor = addCalendarDays(cursor, 1);
+  }
+  return fromDate;
+}
+
 function canUseStorage() {
   return typeof window !== "undefined" && !!window.localStorage;
 }
@@ -146,6 +156,9 @@ export class TradingEngine {
     this.toastSeq = 0;
     this.version = 0;
     this.bootPromise = null;
+    this.jumpPromise = null;
+    this.jumpToken = 0;
+    this.bootstrapHistoricalStore = null;
     this.state = this.createInitialState();
   }
 
@@ -178,6 +191,9 @@ export class TradingEngine {
       chartAutoScale: true,
       chartOffset: 0,
       chartFollowLatest: true,
+      chartAnchor: null,
+      chartFitToData: false,
+      fastForwarding: false,
       chartIndicators: {
         ma20: { enabled: true, period: 20, color: "ma20" },
         ma50: { enabled: true, period: 50, color: "ma50" },
@@ -276,6 +292,12 @@ export class TradingEngine {
       trend: 0,
       swingState: 0,
       effects: [],
+      historicalCandles: null,
+      canonicalIntradayCandles: null,
+      canonicalIntradayHistoricalCount: 0,
+      canonicalIntradayLiveCount: 0,
+      runtimeMinuteCandles: null,
+      runtimeMinuteSourceCount: 0,
       candles: [],
       sessionPlan: null,
       eventMarkers: [],
@@ -1117,30 +1139,16 @@ export class TradingEngine {
 
   hydrateBootstrapCache(cache) {
     if (!cache?.dates?.length) return null;
-    const dates = cache.dates;
-    const candlesBySymbol = cache.candles || {};
+    this.bootstrapHistoricalStore = {
+      dates: cache.dates,
+      candlesBySymbol: cache.candles || {},
+    };
     const assetSnapshots = cache.assets || {};
 
     for (const symbol of this.state.assetList) {
       const asset = this.state.assets[symbol];
-      const packedCandles = candlesBySymbol[symbol] || [];
-      asset.candles = packedCandles.map((row, index) => {
-        const dayIndex = index - dates.length + 1;
-        return {
-          t: dayIndex * SESSION_MINUTES,
-          day: dayIndex,
-          date: dates[index],
-          minute: 0,
-          open: Number(row[0] || asset.price),
-          high: Number(row[1] || asset.price),
-          low: Number(row[2] || asset.price),
-          close: Number(row[3] || asset.price),
-          volume: Math.max(1, Math.floor(Number(row[4] || 1))),
-          vwap: Number(row[5] || row[3] || asset.price),
-          event: null,
-          session: row[6] || null,
-        };
-      });
+      asset.historicalCandles = null;
+      asset.candles = [];
       const snapshot = assetSnapshots[symbol];
       if (!snapshot) continue;
       asset.price = Number(snapshot.price || asset.price);
@@ -1164,6 +1172,93 @@ export class TradingEngine {
       flow: cache.flow || null,
       leadership: cache.leadership || null,
     };
+  }
+
+  getHistoricalCandleCount(asset) {
+    if (!asset) return 0;
+    if (Array.isArray(asset.historicalCandles)) return asset.historicalCandles.length;
+    return this.bootstrapHistoricalStore?.candlesBySymbol?.[asset.symbol]?.length || 0;
+  }
+
+  getHistoricalCandles(asset) {
+    if (!asset) return [];
+    if (Array.isArray(asset.historicalCandles)) return asset.historicalCandles;
+
+    const dates = this.bootstrapHistoricalStore?.dates;
+    const packedCandles = this.bootstrapHistoricalStore?.candlesBySymbol?.[asset.symbol];
+    if (!Array.isArray(dates) || !Array.isArray(packedCandles) || !packedCandles.length) {
+      asset.historicalCandles = [];
+      return asset.historicalCandles;
+    }
+
+    asset.historicalCandles = packedCandles.map((row, index) => {
+      const dayIndex = index - dates.length + 1;
+      return {
+        t: dayIndex * SESSION_MINUTES,
+        day: dayIndex,
+        date: dates[index],
+        minute: 0,
+        open: Number(row[0] || asset.price),
+        high: Number(row[1] || asset.price),
+        low: Number(row[2] || asset.price),
+        close: Number(row[3] || asset.price),
+        volume: Math.max(1, Math.floor(Number(row[4] || 1))),
+        vwap: Number(row[5] || row[3] || asset.price),
+        event: null,
+        session: row[6] || null,
+      };
+    });
+    return asset.historicalCandles;
+  }
+
+  getCanonicalIntradayCandles(asset) {
+    if (!asset) return [];
+
+    const historicalCandles = this.getHistoricalCandles(asset);
+    let bars = Array.isArray(asset.canonicalIntradayCandles)
+      ? asset.canonicalIntradayCandles
+      : [];
+    let historicalCount = Math.max(
+      0,
+      Math.min(
+        Number(asset.canonicalIntradayHistoricalCount || 0),
+        historicalCandles.length,
+      ),
+    );
+    let liveCount = Math.max(0, Number(asset.canonicalIntradayLiveCount || 0));
+
+    if (!Array.isArray(asset.canonicalIntradayCandles)) {
+      bars = [];
+      historicalCount = 0;
+      liveCount = 0;
+    }
+
+    if (liveCount > asset.candles.length) {
+      bars.splice(Math.max(0, bars.length - liveCount), liveCount);
+      liveCount = 0;
+    }
+
+    for (let index = historicalCount; index < historicalCandles.length; index += 1) {
+      const candle = historicalCandles[index];
+      const decoded = decodeSessionFromCandle(candle, 1);
+      if (Array.isArray(decoded) && decoded.length) bars.push(...decoded);
+      else bars.push(candle);
+    }
+    historicalCount = historicalCandles.length;
+
+    if (liveCount > 0) {
+      bars.splice(Math.max(0, bars.length - liveCount), liveCount);
+      liveCount = 0;
+    }
+    if (asset.candles.length) {
+      bars.push(...asset.candles);
+      liveCount = asset.candles.length;
+    }
+
+    asset.canonicalIntradayCandles = bars;
+    asset.canonicalIntradayHistoricalCount = historicalCount;
+    asset.canonicalIntradayLiveCount = liveCount;
+    return asset.canonicalIntradayCandles;
   }
 
   buildAssetSessionContext({
@@ -1539,27 +1634,13 @@ export class TradingEngine {
           asset,
           flowState: historyFlow,
           isoDate: date,
-          dayIndex: i,
+          dayIndex,
           leadership,
           sectorBiasMap: sectorBias,
           microState,
         });
         const plan = this.createSessionPlan(asset, context);
         if (!plan) continue;
-        asset.candles.push({
-          t: dayIndex * SESSION_MINUTES,
-          day: dayIndex,
-          date,
-          minute: 0,
-          open: plan.summary.open,
-          high: plan.summary.high,
-          low: plan.summary.low,
-          close: plan.summary.close,
-          volume: plan.summary.volume,
-          vwap: plan.summary.vwap,
-          event: null,
-          session: packSessionBlueprint(plan.blueprint),
-        });
         packedCandles[symbol].push([
           roundPrice(plan.summary.open),
           roundPrice(plan.summary.high),
@@ -1613,7 +1694,10 @@ export class TradingEngine {
   }
 
   async resetState(emit = true) {
+    this.jumpToken += 1;
+    this.jumpPromise = null;
     const next = this.createInitialState();
+    this.bootstrapHistoricalStore = null;
     this.state = next;
     this.setBootState(
       {
@@ -1685,7 +1769,13 @@ export class TradingEngine {
           );
         },
       );
-      if (historyResult?.cache) this.saveBootstrapCache(historyResult.cache);
+      if (historyResult?.cache) {
+        this.bootstrapHistoricalStore = {
+          dates: historyResult.cache.dates,
+          candlesBySymbol: historyResult.cache.candles || {},
+        };
+        this.saveBootstrapCache(historyResult.cache);
+      }
     } else {
       this.setBootState(
         {
@@ -1698,7 +1788,7 @@ export class TradingEngine {
     }
     for (const symbol of next.assetList) {
       const asset = next.assets[symbol];
-      if (!asset.candles.length) {
+      if (!asset.candles.length && this.getHistoricalCandleCount(asset) === 0) {
         this.seedHistory(asset, 240, historyDate);
       }
     }
@@ -2748,8 +2838,9 @@ export class TradingEngine {
     for (const symbol of this.state.assetList) {
       const asset = this.state.assets[symbol];
       const context = asset.sessionPlan?.context;
+      const blueprint = asset.sessionPlan?.blueprint;
       if (!context) continue;
-      this.applySessionStateTransition(asset, context, {
+      const summary = {
         open: asset.open,
         high: asset.high,
         low: asset.low,
@@ -2760,8 +2851,32 @@ export class TradingEngine {
           Math.max(context.priceFloor, asset.close) /
             Math.max(context.priceFloor, asset.open || context.prevClose),
         ),
-      });
+      };
+      this.archiveCompletedSession(asset, summary, blueprint);
+      this.applySessionStateTransition(asset, context, summary);
     }
+  }
+
+  archiveCompletedSession(asset, summary, blueprint = null) {
+    if (!asset || !summary || !blueprint) return;
+    const historicalCandles = this.getHistoricalCandles(asset);
+    historicalCandles.push({
+      t: this.state.day * SESSION_MINUTES,
+      day: this.state.day,
+      date: this.state.calendarDate,
+      minute: 0,
+      open: summary.open,
+      high: summary.high,
+      low: summary.low,
+      close: summary.close,
+      volume: summary.volume,
+      vwap: summary.vwap,
+      event: null,
+      session: packSessionBlueprint(blueprint),
+    });
+    asset.candles = asset.candles.filter(
+      (candle) => Number(candle?.day) !== Number(this.state.day),
+    );
   }
 
   nextDay() {
@@ -2783,11 +2898,57 @@ export class TradingEngine {
     this.state.eventSchedule = Math.floor(rand(12, 28));
   }
 
-  stepMinute() {
+  syncChartAfterTimeAdvance(prevAggregatedCount = null) {
     const selectedAsset = this.state.assets[this.state.selected];
+    if (!selectedAsset) return;
+
+    if (!this.state.chartFollowLatest) {
+      const nextData = this.aggregateCandles(selectedAsset, this.state.timeframe);
+      const anchorIndex = this.findChartAnchorIndex(nextData);
+      if (anchorIndex >= 0) {
+        const endExclusive = anchorIndex + 1;
+        const maxOffset = Math.max(0, nextData.length - 24);
+        this.state.chartOffset = clamp(
+          nextData.length - endExclusive,
+          0,
+          maxOffset,
+        );
+        this.state.chartAnchor = this.buildChartAnchor(
+          nextData[Math.max(0, endExclusive - 1)],
+          this.state.timeframe,
+        );
+        return;
+      }
+
+      if (Number.isFinite(prevAggregatedCount)) {
+        const nextAggregatedCount = nextData.length;
+        const deltaBars = Math.max(0, nextAggregatedCount - prevAggregatedCount);
+        if (deltaBars > 0) {
+          const maxOffset = Math.max(0, nextData.length - 24);
+          this.state.chartOffset = clamp(
+            (this.state.chartOffset || 0) + deltaBars,
+            0,
+            maxOffset,
+          );
+        }
+      }
+      return;
+    }
+
+    if (this.state.chartOffset !== 0) {
+      this.state.chartOffset = 0;
+      this.state.chartAnchor = null;
+    }
+  }
+
+  stepMinute({ syncChart = true, markRender = true } = {}) {
+    const selectedAsset =
+      syncChart && !this.state.chartFollowLatest
+        ? this.state.assets[this.state.selected]
+        : null;
     const prevAggregatedCount = selectedAsset
       ? this.aggregateCandles(selectedAsset, this.state.timeframe).length
-      : 0;
+      : null;
 
     for (const symbol of this.state.assetList) {
       const candle = this.stepAsset(this.state.assets[symbol]);
@@ -2801,22 +2962,13 @@ export class TradingEngine {
     this.state.marketMinute += 1;
     if (this.state.marketMinute >= SESSION_MINUTES) this.nextDay();
 
-    if (!this.state.chartFollowLatest && selectedAsset) {
-      const nextAggregatedCount = this.aggregateCandles(selectedAsset, this.state.timeframe).length;
-      const deltaBars = Math.max(0, nextAggregatedCount - prevAggregatedCount);
-      if (deltaBars > 0) {
-        const maxOffset = this.getMaxChartOffset();
-        this.state.chartOffset = clamp(
-          (this.state.chartOffset || 0) + deltaBars,
-          0,
-          maxOffset,
-        );
-      }
-    } else if (this.state.chartFollowLatest && this.state.chartOffset !== 0) {
-      this.state.chartOffset = 0;
+    if (syncChart) {
+      this.syncChartAfterTimeAdvance(prevAggregatedCount);
     }
 
-    this.state.needsRender = true;
+    if (markRender) {
+      this.state.needsRender = true;
+    }
   }
 
   frame(ts) {
@@ -2832,7 +2984,7 @@ export class TradingEngine {
       return;
     }
 
-    if (!this.state.paused) {
+    if (!this.state.paused && !this.state.fastForwarding) {
       this.state.accumulator += dt * this.state.baseMinutesPerSecond * this.state.speed;
       while (this.state.accumulator >= 1) {
         this.stepMinute();
@@ -2846,22 +2998,70 @@ export class TradingEngine {
     }
   }
 
-  jumpToNextCatalyst() {
-    const before = this.state.news.length;
-    let safety = 520;
-    while (this.state.news.length === before && safety > 0) {
-      this.stepMinute();
-      safety -= 1;
-    }
-    this.requestRender(true);
+  async jumpToNextCatalyst() {
+    if (this.jumpPromise) return this.jumpPromise;
+
+    const token = ++this.jumpToken;
+    const promise = (async () => {
+      const before = this.state.news.length;
+      let safety = 520;
+      let prevAggregatedCount = !this.state.chartFollowLatest && this.state.assets[this.state.selected]
+        ? this.aggregateCandles(this.state.assets[this.state.selected], this.state.timeframe).length
+        : null;
+      const chunkSize = 24;
+
+      this.state.fastForwarding = true;
+      this.requestRender(true);
+
+      while (this.jumpToken === token && this.state.news.length === before && safety > 0) {
+        let steps = 0;
+        while (
+          this.jumpToken === token &&
+          this.state.news.length === before &&
+          safety > 0 &&
+          steps < chunkSize
+        ) {
+          this.stepMinute({ syncChart: false, markRender: false });
+          safety -= 1;
+          steps += 1;
+        }
+
+        this.syncChartAfterTimeAdvance(prevAggregatedCount);
+        prevAggregatedCount = !this.state.chartFollowLatest && this.state.assets[this.state.selected]
+          ? this.aggregateCandles(this.state.assets[this.state.selected], this.state.timeframe).length
+          : null;
+        this.state.needsRender = true;
+
+        if (this.jumpToken === token && this.state.news.length === before && safety > 0) {
+          await this.yieldToBrowser();
+        }
+      }
+
+      if (this.jumpToken === token) {
+        this.syncChartAfterTimeAdvance(prevAggregatedCount);
+      }
+    })().finally(() => {
+      if (this.jumpPromise === promise) {
+        this.jumpPromise = null;
+      }
+      if (this.jumpToken === token) {
+        this.state.fastForwarding = false;
+        this.requestRender(true);
+      }
+    });
+
+    this.jumpPromise = promise;
+    return promise;
   }
 
   aggregateCandles(asset, frame) {
-    const source = asset.candles;
     const normalizedFrame = Math.max(1, Math.floor(Number(frame) || 1));
     const effectiveFrame = normalizedFrame === 1440 ? SESSION_MINUTES : normalizedFrame;
-    const maxPoints = MAX_CANDLE_STORE;
-    if (effectiveFrame === 1) return source.slice(-maxPoints);
+    const source =
+      effectiveFrame < SESSION_MINUTES
+        ? this.getCanonicalIntradayCandles(asset)
+        : this.getHistoricalCandles(asset).concat(asset.candles);
+    if (effectiveFrame === 1) return source;
 
     const result = [];
     let bucket = null;
@@ -2887,19 +3087,136 @@ export class TradingEngine {
       }
     }
     if (bucket) result.push(bucket);
-    const sliced = result.slice(-maxPoints);
-    if (
-      effectiveFrame > 1 &&
-      sliced.length &&
-      this.state.marketMinute > 0 &&
-      this.state.marketMinute % effectiveFrame !== 0
-    ) {
-      const last = sliced[sliced.length - 1];
-      const isCurrentSessionBucket =
-        Number(last?.day) === Number(this.state.day) && Number(last?.day) >= 0;
-      if (isCurrentSessionBucket) sliced.pop();
+    return result;
+  }
+
+  buildChartSequenceDebugReport({
+    symbol = this.state.selected,
+    startDate = DEFAULT_START_DATE,
+  } = {}) {
+    const asset = this.state.assets?.[symbol];
+    if (!asset) {
+      return {
+        error: `Unknown symbol: ${symbol}`,
+        symbol,
+      };
     }
-    return sliced.slice(-maxPoints);
+
+    const holidaySet = this.getHolidaySet();
+    const historical = this.getHistoricalCandles(asset);
+    const canonical = this.getCanonicalIntradayCandles(asset);
+    const daily = this.aggregateCandles(asset, SESSION_MINUTES);
+    const minute = this.aggregateCandles(asset, 1);
+
+    const historicalBootstrap = historical.filter((candle) => Number(candle.day || 0) <= 0);
+    const historicalRuntime = historical.filter((candle) => Number(candle.day || 0) > 0);
+    const runtimeDaily = daily.filter((candle) => String(candle.date || "") >= startDate);
+
+    const runtimeDailyDates = runtimeDaily.map((candle) => String(candle.date || ""));
+    const runtimeDateSet = new Set(runtimeDailyDates);
+    const missingRuntimeDates = [];
+    if (runtimeDailyDates.length) {
+      let cursor = runtimeDailyDates[0];
+      const lastDate = runtimeDailyDates[runtimeDailyDates.length - 1];
+      for (let guard = 0; guard < 10000 && cursor <= lastDate; guard += 1) {
+        if (!runtimeDateSet.has(cursor)) missingRuntimeDates.push(cursor);
+        const next = nextOpenDate(cursor, holidaySet);
+        if (next === cursor) break;
+        cursor = next;
+      }
+    }
+
+    const minuteCounts = new Map();
+    for (const candle of minute) {
+      const date = String(candle?.date || "");
+      if (!date || date < startDate) continue;
+      minuteCounts.set(date, (minuteCounts.get(date) || 0) + 1);
+    }
+    const unusualMinuteDays = Array.from(minuteCounts.entries())
+      .map(([date, count]) => {
+        const historicalMatch = historicalRuntime.find((candle) => candle.date === date);
+        const expected =
+          date === this.state.calendarDate && !historicalMatch
+            ? Math.max(1, this.state.marketMinute)
+            : SESSION_MINUTES;
+        return {
+          date,
+          count,
+          expected,
+        };
+      })
+      .filter((item) => item.count !== item.expected);
+
+    return {
+      symbol,
+      selected: this.state.selected,
+      calendarDate: this.state.calendarDate,
+      day: this.state.day,
+      marketMinute: this.state.marketMinute,
+      timeframe: this.state.timeframe,
+      chart: {
+        zoom: this.state.chartZoom,
+        fitToData: this.state.chartFitToData,
+        offset: this.state.chartOffset,
+        followLatest: this.state.chartFollowLatest,
+        anchor: this.state.chartAnchor,
+      },
+      source: {
+        historicalCount: historical.length,
+        bootstrapHistoricalCount: historicalBootstrap.length,
+        runtimeHistoricalCount: historicalRuntime.length,
+        liveMinuteCount: asset.candles.length,
+        canonicalMinuteCount: canonical.length,
+      },
+      runtime: {
+        startDate,
+        firstDailyDate: runtimeDailyDates[0] || null,
+        lastDailyDate: runtimeDailyDates[runtimeDailyDates.length - 1] || null,
+        dailyCount: runtimeDailyDates.length,
+        firstEightDates: runtimeDailyDates.slice(0, 8),
+        lastEightDates: runtimeDailyDates.slice(-8),
+        archivedFirstEight: historicalRuntime.slice(0, 8).map((candle) => candle.date),
+        archivedLastEight: historicalRuntime.slice(-8).map((candle) => candle.date),
+        missingDailyDates: missingRuntimeDates,
+        unusualMinuteDays: unusualMinuteDays.slice(0, 40),
+      },
+    };
+  }
+
+  debugDumpChartSequence(options = {}) {
+    const report = this.buildChartSequenceDebugReport(options);
+    if (typeof console !== "undefined" && console.log) {
+      console.log("[trade-sim] chart-sequence-debug");
+      console.log(JSON.stringify(report, null, 2));
+    }
+    return report;
+  }
+
+  buildChartAnchor(candle, timeframe = this.state.timeframe) {
+    if (!candle) return null;
+    return {
+      symbol: this.state.selected,
+      timeframe: Math.max(1, Math.floor(Number(timeframe) || 1)),
+      date: candle.date || "",
+      day: Number(candle.day || 0),
+      minute: Number(candle.minute || 0),
+      t: Number(candle.t || 0),
+    };
+  }
+
+  findChartAnchorIndex(data, anchor = this.state.chartAnchor) {
+    if (!Array.isArray(data) || !data.length || !anchor) return -1;
+    for (let index = data.length - 1; index >= 0; index -= 1) {
+      const candle = data[index];
+      if (
+        Number(candle?.day || 0) === Number(anchor.day || 0) &&
+        Number(candle?.minute || 0) === Number(anchor.minute || 0) &&
+        String(candle?.date || "") === String(anchor.date || "")
+      ) {
+        return index;
+      }
+    }
+    return -1;
   }
 
   movingAverage(series, period, accessor = (item) => item.close) {
@@ -2974,9 +3291,12 @@ export class TradingEngine {
 
   setSelectedSymbol(symbol) {
     if (!this.state.assets[symbol]) return;
+    this.clearCanonicalIntradayCachesExcept(symbol);
     this.state.selected = symbol;
     this.state.chartOffset = 0;
     this.state.chartFollowLatest = true;
+    this.state.chartAnchor = null;
+    this.state.chartFitToData = false;
     if (this.state.orderForm.type === "limit") {
       this.state.orderForm.limitPrice = this.state.assets[symbol].price;
     }
@@ -2993,22 +3313,28 @@ export class TradingEngine {
     this.state.timeframe = parsed;
     this.state.chartOffset = 0;
     this.state.chartFollowLatest = true;
+    this.state.chartAnchor = null;
     this.requestRender(true);
   }
 
   setChartZoom(zoom) {
     const parsed = Number(zoom);
     if (!Number.isFinite(parsed)) return;
-    this.state.chartZoom = clamp(parsed, 0.45, 4);
+    this.state.chartFitToData = false;
+    this.state.chartZoom = clamp(parsed, 0.0005, 4);
     this.requestRender(true);
   }
 
   adjustChartZoom(deltaY) {
     const factor = Math.exp(-deltaY * 0.0016);
+    if (deltaY < 0) {
+      this.state.chartFitToData = false;
+    }
     this.setChartZoom((this.state.chartZoom || 1) * factor);
   }
 
   resetChartZoom() {
+    this.state.chartFitToData = false;
     this.state.chartZoom = 1;
     this.requestRender(true);
   }
@@ -3102,6 +3428,20 @@ export class TradingEngine {
     }
     this.state.chartOffset = nextOffset;
     this.state.chartFollowLatest = nextFollowLatest;
+    if (!nextFollowLatest) {
+      this.state.chartFitToData = false;
+    }
+    if (nextFollowLatest) {
+      this.state.chartAnchor = null;
+    } else {
+      const asset = this.state.assets[this.state.selected];
+      const data = asset ? this.aggregateCandles(asset, this.state.timeframe) : [];
+      const endExclusive = clamp(data.length - nextOffset, 1, data.length);
+      this.state.chartAnchor = this.buildChartAnchor(
+        data[Math.max(0, endExclusive - 1)],
+        this.state.timeframe,
+      );
+    }
     this.requestRender(true);
   }
 
@@ -3117,7 +3457,19 @@ export class TradingEngine {
     if (this.state.chartOffset === 0 && this.state.chartFollowLatest) return;
     this.state.chartOffset = 0;
     this.state.chartFollowLatest = true;
+    this.state.chartAnchor = null;
     this.requestRender(true);
+  }
+
+  clearCanonicalIntradayCachesExcept(symbolToKeep = null) {
+    for (const symbol of this.state.assetList || []) {
+      if (symbol === symbolToKeep) continue;
+      const asset = this.state.assets?.[symbol];
+      if (!asset) continue;
+      asset.canonicalIntradayCandles = null;
+      asset.canonicalIntradayHistoricalCount = 0;
+      asset.canonicalIntradayLiveCount = 0;
+    }
   }
 
   setOrderSide(side) {

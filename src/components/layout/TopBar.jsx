@@ -1,4 +1,4 @@
-import { useMemo, useState } from "react";
+import { useMemo, useRef, useState } from "react";
 import { fmtMoney, timeLabel } from "../../simulator/utils";
 
 function tabButtonClass(state, tab) {
@@ -11,6 +11,8 @@ function speedButtonClass(state, speed) {
 
 export function TopBar({ engine, state }) {
   const [marketQuery, setMarketQuery] = useState("");
+  const [marketOpen, setMarketOpen] = useState(false);
+  const pairPopoverRef = useRef(null);
   const equity = engine.getEquity();
   const usedMargin = engine.getUsedMargin();
   const health = engine.getMarginHealth();
@@ -26,6 +28,12 @@ export function TopBar({ engine, state }) {
     });
   }, [marketQuery, state.assetList, state.assets]);
 
+  const closeMarketPopover = () => {
+    setMarketOpen(false);
+    const active = pairPopoverRef.current?.querySelector(":focus");
+    if (active && typeof active.blur === "function") active.blur();
+  };
+
   return (
     <header className="topbar">
       <div className="top-left">
@@ -38,8 +46,33 @@ export function TopBar({ engine, state }) {
         </div>
 
         {selectedAsset ? (
-          <div className="pair-popover">
-            <div className="pair-box">
+          <div
+            className={`pair-popover ${marketOpen ? "open" : ""}`}
+            ref={pairPopoverRef}
+            onMouseEnter={() => setMarketOpen(true)}
+            onMouseLeave={closeMarketPopover}
+            onFocus={() => setMarketOpen(true)}
+            onBlur={(event) => {
+              if (event.currentTarget.contains(event.relatedTarget)) return;
+              setMarketOpen(false);
+            }}
+          >
+            <div
+              className="pair-box"
+              role="button"
+              tabIndex={0}
+              onClick={() => setMarketOpen((prev) => !prev)}
+              onKeyDown={(event) => {
+                if (event.key === "Enter" || event.key === " ") {
+                  event.preventDefault();
+                  setMarketOpen((prev) => !prev);
+                }
+                if (event.key === "Escape") {
+                  event.preventDefault();
+                  closeMarketPopover();
+                }
+              }}
+            >
               <div className="pair-symbol">
                 {selectedAsset.symbol} - {selectedAsset.name}
               </div>
@@ -75,7 +108,10 @@ export function TopBar({ engine, state }) {
                     type="button"
                     key={asset.symbol}
                     className={`market-row ${asset.symbol === state.selected ? "active" : ""}`}
-                    onClick={() => engine.setSelectedSymbol(asset.symbol)}
+                    onClick={() => {
+                      engine.setSelectedSymbol(asset.symbol);
+                      closeMarketPopover();
+                    }}
                   >
                     <div className="market-col-symbol">
                       <span className="market-star">{asset.symbol === state.selected ? "*" : "."}</span>
@@ -140,8 +176,13 @@ export function TopBar({ engine, state }) {
           <button className="ghost-btn" id="pauseBtn" onClick={() => engine.togglePause()}>
             Pause
           </button>
-          <button className="ghost-btn gold" id="jumpBtn" onClick={() => engine.jumpToNextCatalyst()}>
-            Jump
+          <button
+            className="ghost-btn gold"
+            id="jumpBtn"
+            onClick={() => engine.jumpToNextCatalyst()}
+            disabled={state.fastForwarding}
+          >
+            {state.fastForwarding ? "Jumping..." : "Jump"}
           </button>
           <span className={`badge ${health > 2 ? "good" : health > 1.2 ? "warn" : "bad"}`}>
             Health {health === 999 ? "999" : health.toFixed(2)}

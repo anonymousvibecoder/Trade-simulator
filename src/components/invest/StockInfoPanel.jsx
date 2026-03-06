@@ -27,7 +27,8 @@ const BALANCE_ROWS = [
 
 export function StockInfoPanel({ asset, calendarDate }) {
   const { t, get, language } = useI18n();
-  const contentRef = useRef(null);
+  const rootRef = useRef(null);
+  const scrollContainerRef = useRef(null);
   const sectionRefs = useRef({});
   const [activeSection, setActiveSection] = useState(STOCK_INFO_SECTIONS[0].id);
 
@@ -44,34 +45,17 @@ export function StockInfoPanel({ asset, calendarDate }) {
     [asset, calendarDate, profile, t, language],
   );
 
-  useEffect(() => {
-    setActiveSection(STOCK_INFO_SECTIONS[0].id);
-    if (contentRef.current) {
-      contentRef.current.scrollTo({ top: 0, behavior: "auto" });
-    }
-  }, [asset?.symbol]);
-
-  const handleSectionJump = (id) => {
-    const container = contentRef.current;
-    const node = sectionRefs.current[id];
-    if (!container || !node) return;
-    setActiveSection(id);
-    container.scrollTo({
-      top: Math.max(0, node.offsetTop - 8),
-      behavior: "smooth",
-    });
-  };
-
-  const handleScroll = () => {
-    const container = contentRef.current;
+  const syncActiveSection = (container) => {
     if (!container) return;
 
     let nextSection = STOCK_INFO_SECTIONS[0].id;
     let nextDistance = Number.POSITIVE_INFINITY;
+    const containerRect = container.getBoundingClientRect();
     for (const section of STOCK_INFO_SECTIONS) {
       const node = sectionRefs.current[section.id];
       if (!node) continue;
-      const distance = Math.abs(node.offsetTop - container.scrollTop - 24);
+      const nodeRect = node.getBoundingClientRect();
+      const distance = Math.abs(nodeRect.top - containerRect.top - 16);
       if (distance < nextDistance) {
         nextDistance = distance;
         nextSection = section.id;
@@ -80,8 +64,43 @@ export function StockInfoPanel({ asset, calendarDate }) {
     setActiveSection((prev) => (prev === nextSection ? prev : nextSection));
   };
 
+  useEffect(() => {
+    const rootNode = rootRef.current;
+    const scrollContainer = rootNode?.closest(".panel-body") || null;
+    scrollContainerRef.current = scrollContainer;
+    if (!scrollContainer) return undefined;
+
+    const handleContainerScroll = () => {
+      syncActiveSection(scrollContainer);
+    };
+
+    handleContainerScroll();
+    scrollContainer.addEventListener("scroll", handleContainerScroll, { passive: true });
+    return () => {
+      scrollContainer.removeEventListener("scroll", handleContainerScroll);
+    };
+  }, [asset?.symbol]);
+
+  useEffect(() => {
+    setActiveSection(STOCK_INFO_SECTIONS[0].id);
+    if (scrollContainerRef.current) {
+      scrollContainerRef.current.scrollTo({ top: 0, behavior: "auto" });
+    }
+  }, [asset?.symbol]);
+
+  const handleSectionJump = (id) => {
+    const node = sectionRefs.current[id];
+    if (!node) return;
+    setActiveSection(id);
+    node.scrollIntoView({
+      behavior: "smooth",
+      block: "start",
+      inline: "nearest",
+    });
+  };
+
   return (
-    <div className="stock-info-shell">
+    <div className="stock-info-shell" ref={rootRef}>
       <aside className="stock-info-sidebar">
         <div className="stock-info-sidebar-card">
           <div className="stock-info-sidebar-title">{t("stockInfo.navTitle")}</div>
@@ -102,7 +121,7 @@ export function StockInfoPanel({ asset, calendarDate }) {
         </div>
       </aside>
 
-      <div className="stock-info-content" ref={contentRef} onScroll={handleScroll}>
+      <div className="stock-info-content">
         <section
           className="stock-info-section"
           ref={(node) => {

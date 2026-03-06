@@ -213,7 +213,7 @@ export function ChartPanel({ engine, state, version }) {
         <div className="panel-sub">{workspaceSubtitle[activeWorkspace]}</div>
       </div>
 
-      <div className="panel-body">
+      <div className={`panel-body ${activeWorkspace === "profile" ? "profile-panel-body" : ""}`}>
         {activeWorkspace === "chart" ? (
           <div className="chart-workspace-chart">
             <div className="chart-meta-bar">
@@ -307,7 +307,7 @@ export function ChartPanel({ engine, state, version }) {
               </div>
               <div className="chart-scale-row">
                 <span className="badge neutral mono">
-                  {t("chartPanel.badges.zoom", { value: (state.chartZoom ?? 1).toFixed(2) })}
+                  {t("chartPanel.badges.zoom", { value: formatZoomValue(state.chartZoom ?? 1) })}
                 </span>
                 <button className="mini-btn" onClick={() => engine.resetChartZoom()}>
                   {t("chartPanel.controls.resetZoom")}
@@ -500,6 +500,14 @@ export function ChartPanel({ engine, state, version }) {
       </div>
     </article>
   );
+}
+
+function formatZoomValue(value) {
+  const numeric = Number(value);
+  if (!Number.isFinite(numeric)) return "1.00";
+  if (numeric >= 0.1) return numeric.toFixed(2);
+  if (numeric >= 0.01) return numeric.toFixed(3);
+  return numeric.toFixed(4);
 }
 
 function MetricCard({ label, value, tone, compact = false }) {

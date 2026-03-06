@@ -3,11 +3,11 @@ import { clamp, lerp } from "./utils";
 import { decodeSessionFromCandle } from "./sessionModel";
 
 const MIN_VISIBLE = 24;
-const MAX_VISIBLE = 420;
-const MAX_DECODED_VISIBLE = 6000;
+const MAX_DECODED_VISIBLE = 12000;
 const SESSION_MINUTES = 390;
 const SYNTHETIC_SESSION_CACHE = new Map();
 const SYNTHETIC_SESSION_CACHE_LIMIT = 2048;
+const VIEWPORT_MODEL_CACHE = new WeakMap();
 
 export function drawTradingChart({
   canvas,
@@ -79,38 +79,86 @@ export function drawTradingChart({
   }
   const lowerBottomY = showMacd ? macdY + macdH : volY + volumeH;
 
-  const zoom = clamp(state.chartZoom ?? 1, 0.45, 4);
   const baseVisible = Math.max(30, Math.floor(plotW / 9.2));
+  const minZoom = Math.max(
+    0.0005,
+    Math.min(0.45, baseVisible / Math.max(data.length, MIN_VISIBLE)),
+  );
+  const requestedZoom = Number(state.chartZoom ?? 1);
+  const shouldFitToData =
+    state.chartFitToData === true ||
+    (
+      state.chartFollowLatest &&
+      Number(state.chartOffset || 0) === 0 &&
+      Number.isFinite(requestedZoom) &&
+      requestedZoom <= minZoom * 1.02
+    );
+  if (shouldFitToData && state.chartFitToData !== true) {
+    state.chartFitToData = true;
+  }
+  const zoom = shouldFitToData
+    ? minZoom
+    : clamp(requestedZoom, minZoom, 4);
   const scaledVisible = Math.floor(baseVisible / zoom);
-  const visibleCount = clamp(scaledVisible, MIN_VISIBLE, Math.min(data.length, MAX_VISIBLE));
-  const indicatorWarmup = Math.max(240, visibleCount * 3);
+  const visibleCount = clamp(scaledVisible, MIN_VISIBLE, data.length);
+  const indicatorWarmup = clamp(Math.max(240, Math.floor(visibleCount * 0.5)), 240, 2400);
   const endExclusive = clamp(
     data.length - Math.floor(state.chartOffset || 0),
     1,
     data.length,
   );
   const startIndex = Math.max(0, endExclusive - visibleCount - indicatorWarmup);
-  const rawWindowData = data.slice(startIndex, endExclusive);
-  const windowData = decodeFractalResolutionWindow(
-    rawWindowData,
-    state.timeframe,
+  const latestDataCandle = data[data.length - 1] || null;
+  const viewportCacheKey = buildViewportCacheKey({
+    selected: state.selected,
+    timeframe: state.timeframe,
+    plotW,
+    startIndex,
+    endExclusive,
     visibleCount,
-    indicatorWarmup,
-  );
-  const decodeRatio = rawWindowData.length
-    ? Math.max(1, windowData.length / rawWindowData.length)
-    : 1;
-  const decodedVisibleCount = clamp(
-    Math.floor(visibleCount * decodeRatio),
-    MIN_VISIBLE,
-    Math.min(windowData.length, MAX_DECODED_VISIBLE),
-  );
-  const visibleStartIndex = Math.max(0, windowData.length - decodedVisibleCount);
-  const visible = windowData.slice(visibleStartIndex);
+    dataLength: data.length,
+    latestDataCandle,
+  });
+  const cachedViewport = VIEWPORT_MODEL_CACHE.get(canvas);
+  let windowData;
+  let visibleStartIndex;
+  let visible;
+  if (cachedViewport?.key === viewportCacheKey) {
+    ({ windowData, visibleStartIndex, visible } = cachedViewport.value);
+  } else {
+    const rawWindowData = data.slice(startIndex, endExclusive);
+    const sourceWindowData =
+      state.timeframe < SESSION_MINUTES
+        ? rawWindowData
+        : decodeFractalResolutionWindow(
+            rawWindowData,
+            state.timeframe,
+            visibleCount,
+            indicatorWarmup,
+          );
+    windowData = compactCandlesForViewport(
+      sourceWindowData,
+      getViewportRenderBudget(plotW, state.timeframe),
+    );
+    const displayRatio = sourceWindowData.length
+      ? windowData.length / sourceWindowData.length
+      : 1;
+    const renderedVisibleCount = clamp(
+      Math.ceil(visibleCount * displayRatio),
+      MIN_VISIBLE,
+      windowData.length,
+    );
+    visibleStartIndex = Math.max(0, windowData.length - renderedVisibleCount);
+    visible = windowData.slice(visibleStartIndex);
+    VIEWPORT_MODEL_CACHE.set(canvas, {
+      key: viewportCacheKey,
+      value: { windowData, visibleStartIndex, visible },
+    });
+  }
   if (!visible.length) return;
 
   const step = plotW / visible.length;
-  const candleW = clamp(step * 0.64, 2, 12);
+  const candleW = clamp(step * 0.7, 0.6, 12);
   const indexToX = (index) => padL + index * step + step / 2;
   const windowIndex = (visibleIndex) => visibleStartIndex + visibleIndex;
 
@@ -519,10 +567,34 @@ function decodeFractalResolutionWindow(
     MAX_DECODED_VISIBLE,
   );
   const decodeIndexes = new Set();
+  let guaranteedDecodedBars = 0;
+  let collectingRecentLiveHistory = false;
+  for (let i = candles.length - 1; i >= 0; i -= 1) {
+    const candle = candles[i];
+    if (!shouldDecodeHistoricalSession(candle, timeframe)) {
+      if (collectingRecentLiveHistory) break;
+      continue;
+    }
+    if (Number(candle.day || 0) <= 0) {
+      if (collectingRecentLiveHistory) break;
+      continue;
+    }
+    if (guaranteedDecodedBars + barsPerSession > MAX_DECODED_VISIBLE) break;
+    collectingRecentLiveHistory = true;
+    decodeIndexes.add(i);
+    guaranteedDecodedBars += barsPerSession;
+  }
+
   let allocatedBars = 0;
   for (let i = candles.length - 1; i >= 0; i -= 1) {
-    if (!shouldDecodeHistoricalSession(candles[i], timeframe)) continue;
-    if (allocatedBars >= targetDecodedBars && allocatedBars >= visibleCount) break;
+    if (decodeIndexes.has(i) || !shouldDecodeHistoricalSession(candles[i], timeframe)) continue;
+    if (
+      guaranteedDecodedBars + allocatedBars >= targetDecodedBars &&
+      guaranteedDecodedBars + allocatedBars >= visibleCount
+    ) {
+      break;
+    }
+    if (guaranteedDecodedBars + allocatedBars + barsPerSession > MAX_DECODED_VISIBLE) break;
     decodeIndexes.add(i);
     allocatedBars += barsPerSession;
   }
@@ -538,6 +610,78 @@ function decodeFractalResolutionWindow(
   return decoded;
 }
 
+function getViewportRenderBudget(plotW, timeframe) {
+  const safeWidth = Math.max(160, Number(plotW) || 0);
+  if (timeframe >= SESSION_MINUTES) {
+    return clamp(Math.floor(safeWidth / 1.8), 240, MAX_DECODED_VISIBLE);
+  }
+  return clamp(Math.floor(safeWidth / 1.6), 240, 2400);
+}
+
+function buildViewportCacheKey({
+  selected,
+  timeframe,
+  plotW,
+  startIndex,
+  endExclusive,
+  visibleCount,
+  dataLength,
+  latestDataCandle,
+}) {
+  return [
+    selected,
+    timeframe,
+    Math.round(Number(plotW) || 0),
+    startIndex,
+    endExclusive,
+    visibleCount,
+    dataLength,
+    latestDataCandle?.date || "",
+    Number(latestDataCandle?.day || 0),
+    Number(latestDataCandle?.minute || 0),
+    Number(latestDataCandle?.t || 0),
+    Number(latestDataCandle?.close || 0).toFixed(4),
+    Math.round(Number(latestDataCandle?.volume || 0)),
+  ].join("|");
+}
+
+function compactCandlesForViewport(candles, maxBars) {
+  if (!Array.isArray(candles) || !candles.length) return candles;
+  const normalizedBudget = Math.max(MIN_VISIBLE, Math.floor(maxBars || 0));
+  if (candles.length <= normalizedBudget) return candles;
+
+  const bucketSize = Math.max(1, Math.ceil(candles.length / normalizedBudget));
+  const compacted = [];
+  for (let i = 0; i < candles.length; i += bucketSize) {
+    const slice = candles.slice(i, i + bucketSize);
+    const first = slice[0];
+    const last = slice[slice.length - 1];
+    let high = Number.NEGATIVE_INFINITY;
+    let low = Number.POSITIVE_INFINITY;
+    let volume = 0;
+    for (let j = 0; j < slice.length; j += 1) {
+      const candle = slice[j];
+      high = Math.max(high, Number(candle.high) || Number.NEGATIVE_INFINITY);
+      low = Math.min(low, Number(candle.low) || Number.POSITIVE_INFINITY);
+      volume += Number(candle.volume) || 0;
+    }
+    compacted.push({
+      ...last,
+      open: first.open,
+      high,
+      low,
+      close: last.close,
+      volume,
+      bucketSize: slice.length,
+      bucketStartMinute: first.minute,
+      bucketStartDate: first.date,
+      bucketStartDay: first.day,
+      bucketStartT: first.t,
+    });
+  }
+  return compacted;
+}
+
 function barsPerSyntheticSession(timeframe) {
   const normalized = Math.max(1, Math.floor(Number(timeframe) || 1));
   if (normalized >= SESSION_MINUTES) return 1;
@@ -548,7 +692,9 @@ function shouldDecodeHistoricalSession(candle, timeframe) {
   if (!candle || barsPerSyntheticSession(timeframe) <= 1) return false;
   if (!Number.isFinite(candle.open) || !Number.isFinite(candle.close)) return false;
   if (!Number.isFinite(candle.high) || !Number.isFinite(candle.low)) return false;
-  const isCompressedHistorical = Number(candle.day || 0) <= 0 && Number(candle.minute || 0) === 0;
+  const isCompressedHistorical =
+    Number(candle.minute || 0) === 0 &&
+    Array.isArray(candle.session);
   const hasRange = Math.abs(candle.high - candle.low) > 0.000001;
   return isCompressedHistorical && hasRange;
 }
