@@ -1,0 +1,2738 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Market Pulse Desk</title>
+  <style>
+    :root {
+      --bg: #08111d;
+      --bg-2: #0d1728;
+      --panel: #121d31;
+      --panel-2: #17243d;
+      --panel-3: #0e1626;
+      --line: #263451;
+      --line-2: rgba(117, 142, 196, 0.18);
+      --text: #e3ecff;
+      --muted: #89a1cc;
+      --muted-2: #62769d;
+      --green: #29c984;
+      --red: #ff6a84;
+      --yellow: #f4c562;
+      --blue: #61a9ff;
+      --violet: #9980ff;
+      --cyan: #58d2ef;
+      --shadow: 0 16px 36px rgba(0, 0, 0, 0.32);
+      --radius: 18px;
+    }
+
+    * { box-sizing: border-box; }
+    html, body { height: 100%; }
+    body {
+      margin: 0;
+      font-family: Inter, Pretendard, "Noto Sans KR", system-ui, -apple-system, BlinkMacSystemFont, sans-serif;
+      background:
+        radial-gradient(circle at top left, rgba(40, 70, 128, 0.18), transparent 24%),
+        radial-gradient(circle at top right, rgba(98, 80, 156, 0.12), transparent 22%),
+        linear-gradient(180deg, #0a1322, #07101a 46%, #050c15 100%);
+      color: var(--text);
+      overflow: hidden;
+    }
+
+    button, input, select {
+      font: inherit;
+      color: inherit;
+    }
+
+    .hidden { display: none !important; }
+    .good { color: var(--green); }
+    .bad { color: var(--red); }
+    .warn { color: var(--yellow); }
+    .blue { color: var(--blue); }
+    .muted { color: var(--muted); }
+    .mono { font-variant-numeric: tabular-nums; }
+
+    .app {
+      height: 100vh;
+      display: grid;
+      grid-template-rows: 92px 1fr;
+    }
+
+    .topbar {
+      display: grid;
+      grid-template-columns: 280px 260px 1fr 420px;
+      gap: 12px;
+      padding: 12px 14px;
+      border-bottom: 1px solid var(--line);
+      background: rgba(5, 12, 22, 0.82);
+      backdrop-filter: blur(14px);
+      box-shadow: 0 10px 26px rgba(0, 0, 0, 0.18);
+      z-index: 20;
+    }
+
+    .topbox {
+      min-width: 0;
+      border: 1px solid var(--line-2);
+      border-radius: 16px;
+      background: linear-gradient(180deg, rgba(21, 33, 55, 0.92), rgba(12, 19, 32, 0.94));
+      box-shadow: var(--shadow);
+      padding: 10px 14px;
+      display: flex;
+      align-items: center;
+      gap: 12px;
+    }
+
+    .brand {
+      display: flex;
+      flex-direction: column;
+      min-width: 0;
+      gap: 4px;
+    }
+
+    .eyebrow {
+      color: var(--muted);
+      font-size: 11px;
+      letter-spacing: .08em;
+      text-transform: uppercase;
+    }
+
+    .title {
+      font-size: 20px;
+      font-weight: 900;
+      letter-spacing: -.02em;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+
+    .sub {
+      color: var(--muted);
+      font-size: 12px;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+
+    .main-tabs {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      flex-wrap: wrap;
+    }
+
+    .tab-btn, .speed-btn, .ghost-btn, .mini-btn, .book-tab {
+      border: 1px solid rgba(112, 138, 189, 0.26);
+      background: linear-gradient(180deg, rgba(35, 49, 77, 0.92), rgba(16, 25, 43, 0.95));
+      color: var(--text);
+      border-radius: 12px;
+      cursor: pointer;
+      transition: 140ms ease;
+    }
+
+    .tab-btn, .speed-btn, .ghost-btn {
+      padding: 10px 12px;
+      font-size: 13px;
+      font-weight: 800;
+    }
+
+    .mini-btn, .book-tab {
+      padding: 7px 10px;
+      font-size: 12px;
+      font-weight: 800;
+    }
+
+    .tab-btn:hover, .speed-btn:hover, .ghost-btn:hover, .mini-btn:hover, .book-tab:hover {
+      transform: translateY(-1px);
+      border-color: rgba(150, 180, 244, 0.42);
+      box-shadow: 0 8px 18px rgba(0, 0, 0, 0.22);
+    }
+
+    .tab-btn.active, .speed-btn.active, .book-tab.active, .toggle.active {
+      background: linear-gradient(180deg, rgba(61, 108, 201, 0.96), rgba(35, 68, 131, 0.96));
+      border-color: rgba(126, 176, 255, 0.7);
+    }
+
+    .ghost-btn.gold { background: linear-gradient(180deg, rgba(178, 128, 36, 0.95), rgba(116, 82, 17, 0.95)); border-color: rgba(244, 201, 108, 0.46); }
+    .ghost-btn.green, .mini-btn.green { background: linear-gradient(180deg, rgba(33, 136, 94, 0.95), rgba(17, 89, 58, 0.95)); border-color: rgba(76, 222, 159, 0.46); }
+    .ghost-btn.red, .mini-btn.red { background: linear-gradient(180deg, rgba(186, 65, 93, 0.95), rgba(123, 35, 56, 0.95)); border-color: rgba(255, 128, 156, 0.46); }
+
+    .top-metrics {
+      display: grid;
+      grid-template-columns: repeat(5, minmax(0, 1fr));
+      gap: 10px;
+      min-width: 0;
+      width: 100%;
+    }
+
+    .metric {
+      min-width: 0;
+    }
+
+    .metric-label {
+      color: var(--muted);
+      font-size: 11px;
+      text-transform: uppercase;
+      letter-spacing: .06em;
+      margin-bottom: 5px;
+    }
+
+    .metric-value {
+      font-size: 16px;
+      font-weight: 800;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+
+    .speed-box {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 10px;
+      min-width: 0;
+    }
+
+    .speed-wrap {
+      display: flex;
+      gap: 8px;
+      flex-wrap: wrap;
+      justify-content: flex-end;
+    }
+
+    .content {
+      padding: 14px;
+      min-height: 0;
+      overflow: hidden;
+    }
+
+    .tab-panel {
+      display: none;
+      height: 100%;
+    }
+
+    .tab-panel.active {
+      display: block;
+    }
+
+    .invest-shell {
+      display: grid;
+      grid-template-columns: auto 1fr;
+      gap: 14px;
+      height: 100%;
+      min-height: 0;
+    }
+
+    .watchlist-panel {
+      width: 64px;
+      transition: width 180ms ease;
+      overflow: hidden;
+      min-height: 0;
+      display: flex;
+      flex-direction: column;
+      border: 1px solid var(--line-2);
+      border-radius: var(--radius);
+      background: linear-gradient(180deg, rgba(17, 28, 46, 0.95), rgba(10, 16, 27, 0.95));
+      box-shadow: var(--shadow);
+    }
+
+    .watchlist-panel.expanded,
+    .watchlist-panel:hover {
+      width: 252px;
+    }
+
+    .watch-header {
+      padding: 14px 14px 10px;
+      display: flex;
+      justify-content: space-between;
+      align-items: flex-start;
+      gap: 8px;
+      border-bottom: 1px solid rgba(117, 142, 196, 0.12);
+    }
+
+    .watch-header .text {
+      opacity: 0;
+      transition: opacity 120ms ease;
+      pointer-events: none;
+    }
+
+    .watchlist-panel.expanded .watch-header .text,
+    .watchlist-panel:hover .watch-header .text {
+      opacity: 1;
+      pointer-events: auto;
+    }
+
+    .watch-scroll {
+      padding: 8px;
+      overflow: auto;
+      min-height: 0;
+    }
+
+    .panel {
+      min-height: 0;
+      display: flex;
+      flex-direction: column;
+      border: 1px solid var(--line-2);
+      border-radius: var(--radius);
+      background: linear-gradient(180deg, rgba(17, 27, 46, 0.96), rgba(10, 17, 29, 0.96));
+      box-shadow: var(--shadow);
+      overflow: hidden;
+    }
+
+    .panel-header {
+      padding: 14px 16px 0;
+      display: flex;
+      justify-content: space-between;
+      align-items: flex-start;
+      gap: 10px;
+    }
+
+    .panel-title {
+      font-size: 14px;
+      font-weight: 900;
+    }
+
+    .panel-sub {
+      color: var(--muted);
+      font-size: 12px;
+      margin-top: 4px;
+    }
+
+    .panel-body {
+      min-height: 0;
+      padding: 14px 16px 16px;
+    }
+
+    .scroll {
+      overflow: auto;
+      min-height: 0;
+    }
+
+    .scroll::-webkit-scrollbar { width: 10px; height: 10px; }
+    .scroll::-webkit-scrollbar-thumb { background: rgba(110, 134, 185, 0.3); border-radius: 999px; }
+    .scroll::-webkit-scrollbar-track { background: transparent; }
+
+    .invest-main {
+      display: grid;
+      grid-template-rows: minmax(0, 1.15fr) 168px minmax(250px, 0.78fr);
+      gap: 14px;
+      min-height: 0;
+    }
+
+    .top-grid {
+      display: grid;
+      grid-template-columns: 1.9fr 1fr;
+      gap: 14px;
+      min-height: 0;
+    }
+
+    .chart-panel .panel-body {
+      display: grid;
+      grid-template-rows: auto 1fr;
+      gap: 10px;
+      min-height: 0;
+      padding-top: 10px;
+    }
+
+    .chart-head {
+      display: flex;
+      justify-content: space-between;
+      gap: 10px;
+      align-items: center;
+      flex-wrap: wrap;
+    }
+
+    .instrument-line {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      flex-wrap: wrap;
+    }
+
+    .badge {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      border-radius: 999px;
+      padding: 5px 9px;
+      font-size: 11px;
+      font-weight: 800;
+      border: 1px solid rgba(120, 144, 191, 0.22);
+      background: rgba(20, 31, 52, 0.88);
+      color: var(--text);
+    }
+
+    .badge.good { color: #052515; background: rgba(41, 201, 132, 0.92); border-color: rgba(112, 228, 172, 0.54); }
+    .badge.bad { color: #290812; background: rgba(255, 106, 132, 0.92); border-color: rgba(255, 160, 179, 0.44); }
+    .badge.warn { color: #362406; background: rgba(244, 197, 98, 0.94); border-color: rgba(248, 214, 140, 0.46); }
+    .badge.blue { color: #061a36; background: rgba(97, 169, 255, 0.94); border-color: rgba(163, 208, 255, 0.46); }
+    .badge.violet { color: #130e29; background: rgba(153, 128, 255, 0.94); border-color: rgba(194, 180, 255, 0.46); }
+    .badge.neutral { color: var(--text); }
+
+    .timeframe-wrap {
+      display: flex;
+      gap: 8px;
+      flex-wrap: wrap;
+    }
+
+    canvas {
+      width: 100%;
+      height: 100%;
+      display: block;
+      border-radius: 16px;
+      background: linear-gradient(180deg, rgba(11, 19, 33, 0.9), rgba(6, 12, 22, 0.96));
+      border: 1px solid rgba(111, 136, 189, 0.14);
+    }
+
+    .order-panel .panel-body {
+      padding-top: 10px;
+      display: grid;
+      grid-template-rows: auto auto auto auto 1fr;
+      gap: 12px;
+      min-height: 0;
+    }
+
+    .card {
+      border: 1px solid rgba(112, 137, 190, 0.18);
+      border-radius: 14px;
+      padding: 12px;
+      background: linear-gradient(180deg, rgba(23, 35, 58, 0.92), rgba(14, 22, 36, 0.92));
+    }
+
+    .instrument-card {
+      display: grid;
+      grid-template-columns: 1fr auto;
+      gap: 10px;
+      align-items: center;
+    }
+
+    .instrument-card .symbol {
+      font-size: 20px;
+      font-weight: 900;
+    }
+
+    .instrument-card .price {
+      font-size: 28px;
+      font-weight: 900;
+    }
+
+    .order-grid {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 10px;
+    }
+
+    .field {
+      display: flex;
+      flex-direction: column;
+      gap: 6px;
+    }
+
+    .field.full { grid-column: 1 / -1; }
+
+    .field label {
+      color: var(--muted);
+      font-size: 11px;
+      text-transform: uppercase;
+      letter-spacing: .06em;
+    }
+
+    .field input, .field select {
+      border-radius: 12px;
+      border: 1px solid rgba(112, 137, 190, 0.22);
+      background: rgba(8, 15, 26, 0.94);
+      color: var(--text);
+      padding: 10px 11px;
+      outline: none;
+    }
+
+    .toggle-row, .lev-row, .order-actions, .quick-row {
+      display: flex;
+      gap: 8px;
+      flex-wrap: wrap;
+    }
+
+    .toggle {
+      flex: 1 1 0;
+      min-width: 0;
+      border: 1px solid rgba(112, 137, 190, 0.24);
+      background: linear-gradient(180deg, rgba(33, 47, 76, 0.94), rgba(16, 25, 42, 0.96));
+      color: var(--text);
+      border-radius: 12px;
+      padding: 10px 10px;
+      font-weight: 800;
+      cursor: pointer;
+    }
+
+    .preview-grid {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 8px 12px;
+    }
+
+    .preview-item .k {
+      color: var(--muted);
+      font-size: 11px;
+      text-transform: uppercase;
+      letter-spacing: .06em;
+      margin-bottom: 4px;
+    }
+
+    .preview-item .v {
+      font-size: 14px;
+      font-weight: 800;
+    }
+
+    .disabled-input {
+      opacity: 0.55;
+    }
+
+    .todo-list {
+      display: grid;
+      gap: 8px;
+      font-size: 13px;
+    }
+
+    .todo-item {
+      display: flex;
+      gap: 10px;
+      align-items: flex-start;
+      padding: 9px 10px;
+      border-radius: 12px;
+      background: rgba(9, 15, 26, 0.72);
+      border: 1px solid rgba(112, 137, 190, 0.12);
+    }
+
+    .todo-check {
+      width: 18px;
+      height: 18px;
+      border-radius: 6px;
+      border: 1px solid rgba(112, 137, 190, 0.24);
+      background: rgba(18, 28, 46, 0.8);
+      flex: 0 0 auto;
+      margin-top: 1px;
+    }
+
+    .ticker-panel .panel-body {
+      display: grid;
+      grid-template-rows: auto 1fr;
+      gap: 12px;
+      min-height: 0;
+      padding-top: 12px;
+    }
+
+    .sector-strip {
+      display: grid;
+      grid-template-columns: repeat(6, minmax(0, 1fr));
+      gap: 10px;
+    }
+
+    .sector-card {
+      border: 1px solid rgba(112, 137, 190, 0.16);
+      border-radius: 14px;
+      padding: 10px 11px;
+      background: linear-gradient(180deg, rgba(23, 35, 58, 0.92), rgba(11, 18, 30, 0.94));
+    }
+
+    .symbol-bars {
+      display: grid;
+      grid-template-columns: repeat(11, minmax(0, 1fr));
+      gap: 8px;
+      min-height: 0;
+    }
+
+    .bar-card {
+      min-width: 0;
+      border: 1px solid rgba(112, 137, 190, 0.14);
+      border-radius: 14px;
+      padding: 10px;
+      background: linear-gradient(180deg, rgba(21, 33, 54, 0.9), rgba(11, 17, 29, 0.95));
+      display: flex;
+      flex-direction: column;
+      gap: 10px;
+    }
+
+    .bar-card.active {
+      border-color: rgba(126, 176, 255, 0.64);
+      box-shadow: inset 0 0 0 1px rgba(126, 176, 255, 0.18);
+    }
+
+    .bar-head {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 8px;
+      font-size: 12px;
+      font-weight: 800;
+    }
+
+    .bar-track {
+      height: 10px;
+      border-radius: 999px;
+      background: rgba(255, 255, 255, 0.06);
+      overflow: hidden;
+    }
+
+    .bar-fill {
+      height: 100%;
+      border-radius: 999px;
+    }
+
+    .book-panel .panel-body {
+      display: grid;
+      grid-template-rows: auto 1fr;
+      gap: 12px;
+      min-height: 0;
+      padding-top: 12px;
+    }
+
+    .book-tabs {
+      display: flex;
+      gap: 8px;
+      flex-wrap: wrap;
+    }
+
+    .table-wrap {
+      overflow: auto;
+      min-height: 0;
+      border-radius: 14px;
+      border: 1px solid rgba(112, 137, 190, 0.12);
+      background: rgba(8, 14, 24, 0.72);
+    }
+
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      font-size: 12px;
+    }
+
+    th, td {
+      padding: 10px 12px;
+      border-bottom: 1px solid rgba(112, 137, 190, 0.1);
+      text-align: left;
+      vertical-align: middle;
+      white-space: nowrap;
+    }
+
+    th {
+      color: var(--muted);
+      font-size: 11px;
+      text-transform: uppercase;
+      letter-spacing: .05em;
+      position: sticky;
+      top: 0;
+      background: rgba(12, 20, 34, 0.96);
+      z-index: 2;
+    }
+
+    td .row-actions {
+      display: flex;
+      gap: 6px;
+      flex-wrap: wrap;
+    }
+
+    .watch-group {
+      margin-bottom: 12px;
+    }
+
+    .watch-group-title {
+      font-size: 11px;
+      color: var(--muted);
+      margin: 8px 8px 6px;
+      text-transform: uppercase;
+      letter-spacing: .08em;
+      opacity: 0;
+      transition: opacity 120ms ease;
+    }
+
+    .watchlist-panel.expanded .watch-group-title,
+    .watchlist-panel:hover .watch-group-title {
+      opacity: 1;
+    }
+
+    .watch-item {
+      border: 1px solid transparent;
+      border-radius: 14px;
+      padding: 10px;
+      display: grid;
+      grid-template-columns: auto 1fr auto;
+      align-items: center;
+      gap: 10px;
+      cursor: pointer;
+      transition: 120ms ease;
+      margin-bottom: 6px;
+      background: rgba(17, 27, 44, 0.42);
+    }
+
+    .watch-item:hover {
+      transform: translateX(2px);
+      border-color: rgba(112, 137, 190, 0.24);
+      background: rgba(24, 37, 61, 0.72);
+    }
+
+    .watch-item.active {
+      border-color: rgba(126, 176, 255, 0.64);
+      background: rgba(40, 63, 109, 0.46);
+    }
+
+    .watch-pill {
+      width: 12px;
+      height: 12px;
+      border-radius: 999px;
+      background: linear-gradient(180deg, rgba(102, 181, 255, 0.9), rgba(78, 127, 225, 0.9));
+      box-shadow: 0 0 0 3px rgba(78, 127, 225, 0.12);
+      flex: 0 0 auto;
+    }
+
+    .watch-item .info, .watch-item .pricebox {
+      min-width: 0;
+      opacity: 0;
+      transition: opacity 120ms ease;
+    }
+
+    .watchlist-panel.expanded .watch-item .info,
+    .watchlist-panel.expanded .watch-item .pricebox,
+    .watchlist-panel:hover .watch-item .info,
+    .watchlist-panel:hover .watch-item .pricebox {
+      opacity: 1;
+    }
+
+    .watch-symbol {
+      font-size: 13px;
+      font-weight: 900;
+      margin-bottom: 3px;
+    }
+
+    .watch-name {
+      color: var(--muted);
+      font-size: 11px;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }
+
+    .watch-price {
+      font-size: 13px;
+      font-weight: 800;
+      text-align: right;
+    }
+
+    .news-layout {
+      display: grid;
+      grid-template-columns: 360px 1fr;
+      gap: 14px;
+      height: 100%;
+      min-height: 0;
+    }
+
+    .news-right {
+      min-height: 0;
+      display: grid;
+      grid-template-rows: auto 1fr;
+      gap: 14px;
+    }
+
+    .news-groups {
+      display: grid;
+      grid-template-columns: repeat(3, minmax(0, 1fr));
+      gap: 14px;
+      min-height: 0;
+      overflow: auto;
+      padding-right: 2px;
+    }
+
+    .news-group {
+      min-height: 0;
+    }
+
+    .news-stack {
+      display: grid;
+      gap: 10px;
+      padding: 14px 16px 16px;
+      overflow: auto;
+      min-height: 0;
+    }
+
+    .news-item {
+      border: 1px solid rgba(112, 137, 190, 0.16);
+      border-radius: 14px;
+      padding: 11px;
+      background: linear-gradient(180deg, rgba(22, 34, 56, 0.92), rgba(12, 19, 31, 0.94));
+    }
+
+    .news-item-head {
+      display: flex;
+      justify-content: space-between;
+      gap: 8px;
+      align-items: center;
+      margin-bottom: 8px;
+    }
+
+    .community-layout {
+      display: grid;
+      grid-template-columns: 1.1fr 1.1fr .8fr;
+      gap: 14px;
+      height: 100%;
+      min-height: 0;
+    }
+
+    .placeholder-stack {
+      padding: 14px 16px 16px;
+      display: grid;
+      gap: 12px;
+      overflow: auto;
+      min-height: 0;
+    }
+
+    .placeholder {
+      border: 1px dashed rgba(112, 137, 190, 0.3);
+      border-radius: 14px;
+      padding: 14px;
+      background: rgba(11, 18, 31, 0.68);
+    }
+
+    .pill-row {
+      display: flex;
+      gap: 8px;
+      flex-wrap: wrap;
+    }
+
+    .toast-wrap {
+      position: fixed;
+      top: 108px;
+      right: 18px;
+      display: grid;
+      gap: 8px;
+      z-index: 50;
+      pointer-events: none;
+    }
+
+    .toast {
+      min-width: 280px;
+      max-width: 360px;
+      border-radius: 14px;
+      border: 1px solid rgba(112, 137, 190, 0.2);
+      background: rgba(9, 15, 25, 0.94);
+      color: var(--text);
+      padding: 12px 14px;
+      box-shadow: var(--shadow);
+      transition: 180ms ease;
+    }
+
+    .toast.good { border-color: rgba(76, 222, 159, 0.46); }
+    .toast.bad { border-color: rgba(255, 128, 156, 0.46); }
+    .toast.warn { border-color: rgba(244, 201, 108, 0.46); }
+    .toast.blue { border-color: rgba(125, 177, 255, 0.46); }
+
+    .spacer { flex: 1 1 auto; }
+
+    @media (max-width: 1540px) {
+      .topbar { grid-template-columns: 250px 220px 1fr 360px; }
+      .sector-strip { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+      .symbol-bars { grid-template-columns: repeat(6, minmax(0, 1fr)); }
+      .news-groups { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+    }
+  </style>
+</head>
+<body>
+  <div class="app">
+    <header class="topbar">
+      <div class="topbox">
+        <div class="brand">
+          <div class="eyebrow">Trading Simulator</div>
+          <div class="title">Market Pulse Desk</div>
+          <div class="sub">옵션 제거 · 레버리지 중심 · 탭 기반 트레이딩 데스크</div>
+        </div>
+      </div>
+
+      <div class="topbox">
+        <nav class="main-tabs" id="mainTabs">
+          <button class="tab-btn active" data-tab-target="invest">투자</button>
+          <button class="tab-btn" data-tab-target="news">뉴스</button>
+          <button class="tab-btn" data-tab-target="community">커뮤니티</button>
+          <button class="ghost-btn" id="newScenarioBtn">새 시나리오</button>
+        </nav>
+      </div>
+
+      <div class="topbox">
+        <div class="top-metrics">
+          <div class="metric">
+            <div class="metric-label">시간</div>
+            <div class="metric-value mono" id="clockValue">Day 1 · 09:30</div>
+          </div>
+          <div class="metric">
+            <div class="metric-label">시장 레짐</div>
+            <div class="metric-value" id="regimeValue">Risk-On</div>
+          </div>
+          <div class="metric">
+            <div class="metric-label">자산</div>
+            <div class="metric-value mono" id="equityValue">$100,000</div>
+          </div>
+          <div class="metric">
+            <div class="metric-label">현금</div>
+            <div class="metric-value mono" id="cashValue">$100,000</div>
+          </div>
+          <div class="metric">
+            <div class="metric-label">사용 증거금</div>
+            <div class="metric-value mono" id="usedMarginValue">$0</div>
+          </div>
+        </div>
+      </div>
+
+      <div class="topbox speed-box">
+        <div>
+          <div class="metric-label">배속 / 이벤트</div>
+          <div class="sub" id="speedInfo">1x · Auto Slow ON</div>
+        </div>
+        <div class="speed-wrap">
+          <button class="speed-btn active" data-speed="1">1x</button>
+          <button class="speed-btn" data-speed="4">4x</button>
+          <button class="speed-btn" data-speed="16">16x</button>
+          <button class="speed-btn" data-speed="48">48x</button>
+          <button class="ghost-btn" id="pauseBtn">일시정지</button>
+          <button class="ghost-btn gold" id="jumpBtn">다음 촉매</button>
+        </div>
+      </div>
+    </header>
+
+    <main class="content">
+      <section class="tab-panel active" id="tab-invest">
+        <div class="invest-shell">
+          <aside class="watchlist-panel" id="watchlistPanel">
+            <div class="watch-header">
+              <div class="text">
+                <div class="panel-title">종목 리스트</div>
+                <div class="panel-sub">마우스를 올리면 펼쳐집니다.</div>
+              </div>
+              <button class="mini-btn" id="pinWatchlistBtn">핀</button>
+            </div>
+            <div class="watch-scroll scroll" id="watchlist"></div>
+          </aside>
+
+          <div class="invest-main">
+            <div class="top-grid">
+              <article class="panel chart-panel">
+                <div class="panel-header">
+                  <div>
+                    <div class="panel-title">차트</div>
+                    <div class="panel-sub" id="chartSubtitle">ALP · Alpha Neural</div>
+                  </div>
+                  <div class="timeframe-wrap" id="timeframeWrap">
+                    <button class="mini-btn active" data-timeframe="1">1m</button>
+                    <button class="mini-btn" data-timeframe="5">5m</button>
+                    <button class="mini-btn" data-timeframe="15">15m</button>
+                    <button class="mini-btn" data-timeframe="30">30m</button>
+                  </div>
+                </div>
+                <div class="panel-body">
+                  <div class="chart-head">
+                    <div class="instrument-line">
+                      <div class="panel-title" id="selectedInstrument">ALP</div>
+                      <span class="badge blue" id="selectedSectorBadge">AI</span>
+                      <span class="badge neutral mono" id="selectedPriceBadge">$0.00</span>
+                      <span class="badge good mono" id="selectedChangeBadge">+0.00%</span>
+                    </div>
+                    <div class="pill-row" id="chartPillRow"></div>
+                  </div>
+                  <canvas id="chartCanvas"></canvas>
+                </div>
+              </article>
+
+              <article class="panel order-panel">
+                <div class="panel-header">
+                  <div>
+                    <div class="panel-title">포지션 설정 / 주문</div>
+                    <div class="panel-sub">롱 · 숏 · 레버리지 · 마켓/리밋</div>
+                  </div>
+                  <span class="badge violet" id="healthBadge">Health 999</span>
+                </div>
+                <div class="panel-body scroll">
+                  <div class="card instrument-card" id="orderInstrumentCard"></div>
+
+                  <div class="card">
+                    <div class="toggle-row">
+                      <button class="toggle active" data-order-side="long">롱</button>
+                      <button class="toggle" data-order-side="short">숏</button>
+                    </div>
+                    <div style="height:10px"></div>
+                    <div class="toggle-row">
+                      <button class="toggle active" data-order-type="market">시장가</button>
+                      <button class="toggle" data-order-type="limit">지정가</button>
+                    </div>
+                    <div style="height:12px"></div>
+                    <div class="order-grid">
+                      <div class="field">
+                        <label>수량</label>
+                        <input type="number" min="1" step="1" id="orderQtyInput" value="25" />
+                      </div>
+                      <div class="field">
+                        <label>레버리지</label>
+                        <select id="orderLeverageSelect">
+                          <option value="1">1x</option>
+                          <option value="2" selected>2x</option>
+                          <option value="3">3x</option>
+                          <option value="5">5x</option>
+                        </select>
+                      </div>
+                      <div class="field full" id="limitFieldWrap" style="display:none;">
+                        <label>지정가</label>
+                        <input type="number" step="0.01" id="limitPriceInput" />
+                      </div>
+                      <div class="field">
+                        <label>TP (TODO)</label>
+                        <input class="disabled-input" type="text" value="추후 구현 예정" disabled />
+                      </div>
+                      <div class="field">
+                        <label>SL (TODO)</label>
+                        <input class="disabled-input" type="text" value="추후 구현 예정" disabled />
+                      </div>
+                    </div>
+                    <div style="height:12px"></div>
+                    <div class="preview-grid" id="orderPreview"></div>
+                    <div style="height:12px"></div>
+                    <div class="order-actions">
+                      <button class="ghost-btn green" id="submitOrderBtn">주문 실행</button>
+                      <button class="ghost-btn" id="clearOrderBtn">초기화</button>
+                    </div>
+                    <div style="height:10px"></div>
+                    <div class="quick-row">
+                      <button class="mini-btn" id="closeHalfBtn">선택 종목 50% 청산</button>
+                      <button class="mini-btn red" id="closeAllSelectedBtn">선택 종목 전량 청산</button>
+                    </div>
+                  </div>
+
+                  <div class="card" id="orderBookCard"></div>
+
+                  <div class="card">
+                    <div class="panel-title" style="margin-bottom:10px;">확장 TODO</div>
+                    <div class="todo-list">
+                      <div class="todo-item"><div class="todo-check"></div><div><strong>오더북 정식 매칭 엔진</strong><div class="muted">현재는 시각적 프리뷰만 제공. 추후 L2 잔량과 체결 우선순위 반영 예정.</div></div></div>
+                      <div class="todo-item"><div class="todo-check"></div><div><strong>시장 충격 모델 고도화</strong><div class="muted">지금은 간이 슬리피지. 추후 주문 크기·유동성·연쇄 체결 기반 impact 적용.</div></div></div>
+                      <div class="todo-item"><div class="todo-check"></div><div><strong>TP / SL 브래킷 주문</strong><div class="muted">오픈 오더와 연결되는 OCO 구조를 위한 자리 확보 완료.</div></div></div>
+                      <div class="todo-item"><div class="todo-check"></div><div><strong>트리거 주문 / 알림</strong><div class="muted">가격 도달, 뉴스 반응, 레짐 변화 기반 자동 주문 예정.</div></div></div>
+                    </div>
+                  </div>
+                </div>
+              </article>
+            </div>
+
+            <article class="panel ticker-panel">
+              <div class="panel-header">
+                <div>
+                  <div class="panel-title">섹터 / 종목 등락 바</div>
+                  <div class="panel-sub">섹터별 강도와 종목 일일 등락률을 한 줄에서 확인</div>
+                </div>
+              </div>
+              <div class="panel-body">
+                <div class="sector-strip" id="sectorStrip"></div>
+                <div class="symbol-bars" id="symbolBars"></div>
+              </div>
+            </article>
+
+            <article class="panel book-panel">
+              <div class="panel-header">
+                <div>
+                  <div class="panel-title">포지션 / 주문 상태</div>
+                  <div class="panel-sub">오픈 포지션, 오픈 오더, 포지션 히스토리, 오더 히스토리</div>
+                </div>
+              </div>
+              <div class="panel-body">
+                <div class="book-tabs" id="bookTabs">
+                  <button class="book-tab active" data-book-tab="openPositions">Open Position</button>
+                  <button class="book-tab" data-book-tab="openOrders">Open Order</button>
+                  <button class="book-tab" data-book-tab="positionHistory">Position History</button>
+                  <button class="book-tab" data-book-tab="orderHistory">Order History</button>
+                </div>
+                <div class="table-wrap scroll" id="bookTableWrap"></div>
+              </div>
+            </article>
+          </div>
+        </div>
+      </section>
+
+      <section class="tab-panel" id="tab-news">
+        <div class="news-layout">
+          <article class="panel">
+            <div class="panel-header">
+              <div>
+                <div class="panel-title">시장 레짐</div>
+                <div class="panel-sub">현재 시나리오, 리스크 상태, 섹터 강도</div>
+              </div>
+            </div>
+            <div class="placeholder-stack scroll" id="newsLeftCol"></div>
+          </article>
+
+          <div class="news-right">
+            <article class="panel" style="min-height:0;">
+              <div class="panel-header">
+                <div>
+                  <div class="panel-title">최신 정보</div>
+                  <div class="panel-sub">섹터별로 묶인 뉴스 흐름</div>
+                </div>
+              </div>
+              <div class="news-groups scroll" id="newsGroups"></div>
+            </article>
+          </div>
+        </div>
+      </section>
+
+      <section class="tab-panel" id="tab-community">
+        <div class="community-layout">
+          <article class="panel">
+            <div class="panel-header">
+              <div>
+                <div class="panel-title">X 반응</div>
+                <div class="panel-sub">추후 구현 예정인 실시간 소셜 반응 슬롯</div>
+              </div>
+            </div>
+            <div class="placeholder-stack scroll" id="communityX"></div>
+          </article>
+
+          <article class="panel">
+            <div class="panel-header">
+              <div>
+                <div class="panel-title">Reddit 반응</div>
+                <div class="panel-sub">종목별 밈 확산과 숏 스퀴즈 후보용 슬롯</div>
+              </div>
+            </div>
+            <div class="placeholder-stack scroll" id="communityReddit"></div>
+          </article>
+
+          <article class="panel">
+            <div class="panel-header">
+              <div>
+                <div class="panel-title">커뮤니티 TODO</div>
+                <div class="panel-sub">추후 연결될 기능 정의</div>
+              </div>
+            </div>
+            <div class="placeholder-stack scroll" id="communityTodo"></div>
+          </article>
+        </div>
+      </section>
+    </main>
+  </div>
+
+  <div class="toast-wrap" id="toastWrap"></div>
+
+  <script>
+    const $ = (s) => document.querySelector(s);
+    const $$ = (s) => Array.from(document.querySelectorAll(s));
+    const clamp = (v, min, max) => Math.max(min, Math.min(max, v));
+    const lerp = (a, b, t) => a + (b - a) * t;
+    const rand = (a, b) => a + Math.random() * (b - a);
+    const randChoice = (arr) => arr[Math.floor(Math.random() * arr.length)];
+    function randn() {
+      let u = 0, v = 0;
+      while (u === 0) u = Math.random();
+      while (v === 0) v = Math.random();
+      return Math.sqrt(-2 * Math.log(u)) * Math.cos(2 * Math.PI * v);
+    }
+    function weightedPick(items) {
+      const total = items.reduce((s, it) => s + it.weight, 0);
+      let r = Math.random() * total;
+      for (const item of items) {
+        r -= item.weight;
+        if (r <= 0) return item.value;
+      }
+      return items[items.length - 1].value;
+    }
+    function fmtMoney(v, d = 2) {
+      const sign = v < 0 ? '-' : '';
+      return `${sign}$${Math.abs(v).toLocaleString('en-US', { minimumFractionDigits: d, maximumFractionDigits: d })}`;
+    }
+    function fmtPct(v, d = 2) {
+      const sign = v > 0 ? '+' : '';
+      return `${sign}${v.toFixed(d)}%`;
+    }
+    function timeLabel(day, minuteOfDay) {
+      const total = Math.floor(minuteOfDay);
+      const minutes = 570 + total;
+      const hh = Math.floor(minutes / 60);
+      const mm = minutes % 60;
+      return `Day ${day} · ${String(hh).padStart(2, '0')}:${String(mm).padStart(2, '0')}`;
+    }
+
+    const COLORS = {
+      text: '#e3ecff',
+      muted: '#89a1cc',
+      grid: 'rgba(121, 144, 189, 0.12)',
+      up: '#29c984',
+      down: '#ff6a84',
+      ma20: '#61a9ff',
+      ma50: '#f4c562',
+      vwap: '#58d2ef',
+      candleBorder: 'rgba(6, 10, 18, 0.22)'
+    };
+
+    const SECTORS = {
+      AI: { name: 'AI', tone: 'blue' },
+      SEMI: { name: 'Semis', tone: 'violet' },
+      BIO: { name: 'Biotech', tone: 'good' },
+      ENR: { name: 'Energy', tone: 'warn' },
+      CONS: { name: 'Consumer', tone: 'neutral' },
+      MEME: { name: 'Meme', tone: 'bad' }
+    };
+
+    const ASSET_BLUEPRINTS = [
+      { symbol: 'ALP', name: 'Alpha Neural', sector: 'AI', price: 142, vol: 0.0062, shortInterest: 0.12, borrow: 0.028, beta: 1.32 },
+      { symbol: 'SYN', name: 'Synapse Cloud', sector: 'AI', price: 96, vol: 0.0058, shortInterest: 0.09, borrow: 0.022, beta: 1.18 },
+      { symbol: 'QNT', name: 'QuantForge', sector: 'SEMI', price: 88, vol: 0.0050, shortInterest: 0.08, borrow: 0.018, beta: 1.14 },
+      { symbol: 'FAB', name: 'FabWorks', sector: 'SEMI', price: 62, vol: 0.0056, shortInterest: 0.11, borrow: 0.020, beta: 1.08 },
+      { symbol: 'BIO', name: 'HelixBio', sector: 'BIO', price: 54, vol: 0.0108, shortInterest: 0.16, borrow: 0.072, beta: 1.42 },
+      { symbol: 'CRN', name: 'CuraNova', sector: 'BIO', price: 31, vol: 0.0134, shortInterest: 0.21, borrow: 0.085, beta: 1.48 },
+      { symbol: 'ENR', name: 'NovaEnergy', sector: 'ENR', price: 71, vol: 0.0046, shortInterest: 0.07, borrow: 0.014, beta: 0.95 },
+      { symbol: 'OIL', name: 'TerraDrill', sector: 'ENR', price: 44, vol: 0.0052, shortInterest: 0.09, borrow: 0.017, beta: 0.92 },
+      { symbol: 'RET', name: 'UrbanCart', sector: 'CONS', price: 39, vol: 0.0056, shortInterest: 0.10, borrow: 0.021, beta: 0.97 },
+      { symbol: 'PAY', name: 'PayFlow', sector: 'CONS', price: 51, vol: 0.0053, shortInterest: 0.09, borrow: 0.019, beta: 1.02 },
+      { symbol: 'MEM', name: 'MemeWorks', sector: 'MEME', price: 24, vol: 0.0158, shortInterest: 0.33, borrow: 0.18, beta: 1.86 }
+    ];
+
+    const SCENARIOS = [
+      {
+        title: 'AI 유동성 랠리',
+        tag: 'Risk-On',
+        desc: 'AI와 반도체로 유동성이 쏠립니다. 다만 규제 헤드라인 한 줄이면 속도가 급격히 꺾입니다.',
+        regime: { name: 'Risk-On', drift: 0.00015, vol: 0.66 },
+        sectorBias: { AI: 0.00022, SEMI: 0.00014, BIO: 0.00001, ENR: -0.00004, CONS: 0.00002, MEME: 0.00008 },
+        weights: { macroBull: 1.4, macroBear: 0.7, sectorBull: 1.6, sectorBear: 1.0, companyBull: 1.4, companyBear: 0.9, squeeze: 1.1 }
+      },
+      {
+        title: '인플레이션 쇼크 위크',
+        tag: 'Macro Vol',
+        desc: '물가 재가속 우려로 금리 민감 성장주는 흔들리고 에너지와 방어적 흐름이 상대적으로 견조합니다.',
+        regime: { name: 'Macro Vol', drift: -0.00005, vol: 1.08 },
+        sectorBias: { AI: -0.00012, SEMI: -0.00009, BIO: -0.00003, ENR: 0.00018, CONS: -0.00005, MEME: -0.00009 },
+        weights: { macroBull: 0.7, macroBear: 1.7, sectorBull: 0.95, sectorBear: 1.3, companyBull: 1.0, companyBear: 1.15, squeeze: 0.8 }
+      },
+      {
+        title: '임상 결과의 날',
+        tag: 'Idio Vol',
+        desc: '바이오 섹터가 임상 일정과 승인·실패 루머로 출렁입니다. 단일 종목 이벤트 파급력이 매우 큽니다.',
+        regime: { name: 'Idio Vol', drift: 0.00003, vol: 0.96 },
+        sectorBias: { AI: 0.00002, SEMI: 0.00002, BIO: 0.00001, ENR: 0.0, CONS: 0.0, MEME: 0.00003 },
+        weights: { macroBull: 0.8, macroBear: 0.8, sectorBull: 1.0, sectorBear: 1.0, companyBull: 1.5, companyBear: 1.5, squeeze: 1.0 }
+      },
+      {
+        title: '밈 스퀴즈 카니발',
+        tag: 'Gamma Frenzy',
+        desc: '공매도 잔고가 높은 종목들에 커뮤니티 자금이 몰리며 급등락이 연속됩니다.',
+        regime: { name: 'Gamma Frenzy', drift: 0.00007, vol: 1.18 },
+        sectorBias: { AI: 0.00006, SEMI: 0.00002, BIO: 0.00005, ENR: -0.00002, CONS: 0.00001, MEME: 0.00027 },
+        weights: { macroBull: 0.8, macroBear: 0.8, sectorBull: 1.2, sectorBear: 1.0, companyBull: 1.3, companyBear: 1.0, squeeze: 2.2 }
+      },
+      {
+        title: '리스크 오프 압박장',
+        tag: 'Risk-Off',
+        desc: '전반적 약세이지만 급반등과 숏커버가 수시로 발생합니다. 레버리지 관리가 특히 중요합니다.',
+        regime: { name: 'Risk-Off', drift: -0.00013, vol: 0.93 },
+        sectorBias: { AI: -0.00014, SEMI: -0.00011, BIO: -0.00008, ENR: 0.00004, CONS: -0.00004, MEME: -0.00018 },
+        weights: { macroBull: 0.9, macroBear: 1.4, sectorBull: 0.9, sectorBear: 1.3, companyBull: 0.9, companyBear: 1.2, squeeze: 1.3 }
+      }
+    ];
+
+    const state = {
+      selected: 'ALP',
+      scenario: null,
+      assets: {},
+      assetList: [],
+      speed: 1,
+      paused: false,
+      autoSlow: true,
+      autoSlowRestore: null,
+      autoSlowUntil: null,
+      marketMinute: 0,
+      day: 1,
+      baseMinutesPerSecond: 2.4,
+      accumulator: 0,
+      lastFrame: 0,
+      timeframe: 1,
+      news: [],
+      reactionWindows: [],
+      cash: 100000,
+      positions: {},
+      openOrders: [],
+      orderHistory: [],
+      positionHistory: [],
+      selectedTab: 'invest',
+      selectedBookTab: 'openPositions',
+      orderForm: { side: 'long', type: 'market', qty: 25, leverage: 2, limitPrice: null },
+      watchlistPinned: false,
+      hover: { x: null, y: null },
+      toastId: 0,
+      eventSchedule: 0,
+      needsRender: true
+    };
+
+    function createAsset(bp) {
+      return {
+        ...bp,
+        price: bp.price,
+        prevClose: bp.price,
+        open: bp.price,
+        high: bp.price,
+        low: bp.price,
+        close: bp.price,
+        anchor: bp.price,
+        trend: 0,
+        effects: [],
+        candles: [],
+        eventMarkers: [],
+        dayPV: 0,
+        dayVol: 0,
+        lastVolume: 0,
+        spreadBps: 2,
+        changePct: 0,
+        liquidity: 60,
+        squeezeMeter: 0
+      };
+    }
+
+    function pickScenario() {
+      return JSON.parse(JSON.stringify(randChoice(SCENARIOS)));
+    }
+
+    function seedHistory(asset, minutes = 240) {
+      let price = asset.price * rand(0.96, 1.04);
+      let pv = 0;
+      let volTotal = 0;
+      for (let i = 0; i < minutes; i++) {
+        const open = price;
+        const ret = randn() * asset.vol * 0.55 + (state.scenario.sectorBias[asset.sector] || 0) * 0.32;
+        const close = Math.max(1, open * Math.exp(ret));
+        const wig = Math.max(open, close) * asset.vol * rand(0.12, 0.48);
+        const high = Math.max(open, close) + wig;
+        const low = Math.max(0.5, Math.min(open, close) - wig);
+        const volume = Math.floor((70000 + Math.abs(ret) * 2300000 + Math.random() * 22000) * (1 + (asset.sector === 'MEME' ? 0.4 : 0)));
+        pv += close * volume;
+        volTotal += volume;
+        price = close;
+        asset.candles.push({ t: -minutes + i, day: 0, minute: i, open, high, low, close, volume, vwap: pv / Math.max(1, volTotal), event: null });
+      }
+      asset.price = price;
+      asset.prevClose = price;
+      asset.open = price;
+      asset.high = price;
+      asset.low = price;
+      asset.close = price;
+      asset.anchor = price;
+      asset.dayPV = 0;
+      asset.dayVol = 0;
+    }
+
+    function resetState() {
+      state.scenario = pickScenario();
+      state.assets = {};
+      state.assetList = ASSET_BLUEPRINTS.map(a => a.symbol);
+      state.selected = 'ALP';
+      state.speed = 1;
+      state.paused = false;
+      state.autoSlow = true;
+      state.autoSlowRestore = null;
+      state.autoSlowUntil = null;
+      state.marketMinute = 0;
+      state.day = 1;
+      state.accumulator = 0;
+      state.lastFrame = 0;
+      state.timeframe = 1;
+      state.news = [];
+      state.reactionWindows = [];
+      state.cash = 100000;
+      state.positions = {};
+      state.openOrders = [];
+      state.orderHistory = [];
+      state.positionHistory = [];
+      state.eventSchedule = Math.floor(rand(16, 40));
+      state.hover = { x: null, y: null };
+      state.needsRender = true;
+      state.orderForm = { side: 'long', type: 'market', qty: 25, leverage: 2, limitPrice: null };
+
+      for (const bp of ASSET_BLUEPRINTS) {
+        const asset = createAsset(bp);
+        state.assets[bp.symbol] = asset;
+        seedHistory(asset);
+      }
+      for (const sym of state.assetList) {
+        const asset = state.assets[sym];
+        const bias = state.scenario.sectorBias[asset.sector] || 0;
+        asset.price *= 1 + bias * 110 + rand(-0.018, 0.018);
+        asset.prevClose = asset.price;
+        asset.open = asset.price;
+        asset.high = asset.price;
+        asset.low = asset.price;
+        asset.close = asset.price;
+        asset.anchor = asset.price * (1 + bias * 160);
+      }
+
+      addNews({ scope: 'System', severity: 'blue', headline: `시나리오 시작: ${state.scenario.title}`, body: state.scenario.desc }, false);
+      addNews({ scope: 'System', severity: 'warn', headline: '시장 개장', body: '첫 구간은 유동성이 얇습니다. 레버리지와 숏 포지션은 과격하게 흔들릴 수 있습니다.' }, false);
+      setSpeedButtons();
+      renderAll();
+      syncOrderFormToInputs();
+    }
+
+    function maintenanceRate(leverage) {
+      return clamp(0.42 / leverage, 0.08, 0.35);
+    }
+
+    function usedMargin() {
+      return Object.values(state.positions).reduce((sum, pos) => sum + pos.margin, 0);
+    }
+
+    function unrealizedPnl(pos) {
+      const asset = state.assets[pos.symbol];
+      return (asset.price - pos.avg) * pos.qty;
+    }
+
+    function equity() {
+      return state.cash + Object.values(state.positions).reduce((sum, pos) => sum + pos.margin + unrealizedPnl(pos), 0);
+    }
+
+    function grossNotional() {
+      return Object.values(state.positions).reduce((sum, pos) => sum + Math.abs(pos.qty * state.assets[pos.symbol].price), 0);
+    }
+
+    function maintenanceRequirement() {
+      return Object.values(state.positions).reduce((sum, pos) => {
+        const notional = Math.abs(pos.qty * state.assets[pos.symbol].price);
+        return sum + notional * maintenanceRate(pos.leverage);
+      }, 0);
+    }
+
+    function marginHealth() {
+      const req = maintenanceRequirement();
+      if (req <= 0) return 999;
+      return equity() / req;
+    }
+
+    function currentPosition(symbol = state.selected) {
+      return state.positions[symbol] || null;
+    }
+
+    function commission(qty) {
+      return Math.max(1, 0.004 * Math.abs(qty) + 0.8);
+    }
+
+    function slippage(asset, side, qty = 0) {
+      const spread = asset.price * (asset.spreadBps / 10000) * 0.62;
+      const sizeImpact = asset.price * (Math.abs(qty) / Math.max(1500, asset.liquidity * 45)) * 0.006;
+      const trendImpact = asset.price * Math.abs(asset.trend) * 0.22;
+      return (spread + sizeImpact + trendImpact) * (side === 'buy' ? 1 : -1);
+    }
+
+    function addToast(kind, title, text) {
+      const wrap = $('#toastWrap');
+      const el = document.createElement('div');
+      el.className = `toast ${kind}`;
+      el.innerHTML = `<div style="font-weight:900; margin-bottom:4px;">${title}</div><div class="muted">${text}</div>`;
+      wrap.prepend(el);
+      setTimeout(() => { el.style.opacity = '0'; el.style.transform = 'translateY(-6px)'; }, 2800);
+      setTimeout(() => el.remove(), 3400);
+    }
+
+    function addNews(evt, autoSlow = true) {
+      const item = {
+        id: Math.random().toString(36).slice(2),
+        day: state.day,
+        minute: state.marketMinute,
+        time: timeLabel(state.day, state.marketMinute),
+        scope: evt.scope,
+        severity: evt.severity || 'blue',
+        headline: evt.headline,
+        body: evt.body || '',
+        symbol: evt.symbol || null,
+        direction: evt.direction || 0
+      };
+      state.news.unshift(item);
+      state.news = state.news.slice(0, 60);
+      if (evt.symbol && evt.direction) {
+        state.reactionWindows.push({
+          symbol: evt.symbol,
+          direction: evt.direction,
+          expiresDay: state.day,
+          expiresMinute: Math.min(389, state.marketMinute + 20),
+          used: false
+        });
+      }
+      if (autoSlow && state.autoSlow && state.speed > 1 && ['good', 'bad', 'warn'].includes(item.severity)) {
+        state.autoSlowRestore = state.speed;
+        state.speed = item.severity === 'warn' ? 4 : 1;
+        state.autoSlowUntil = { day: state.day, minute: Math.min(389, state.marketMinute + 12) };
+        setSpeedButtons();
+        addToast('warn', 'AUTO SLOW', item.headline);
+      }
+      state.needsRender = true;
+    }
+
+    function maybeEndAutoSlow() {
+      if (!state.autoSlowUntil || state.autoSlowRestore == null) return;
+      if (state.day > state.autoSlowUntil.day || (state.day === state.autoSlowUntil.day && state.marketMinute >= state.autoSlowUntil.minute)) {
+        state.speed = state.autoSlowRestore;
+        state.autoSlowRestore = null;
+        state.autoSlowUntil = null;
+        setSpeedButtons();
+      }
+    }
+
+    function applyEventEffect(effect) {
+      if (effect.kind === 'global') {
+        state.scenario.regime.drift += effect.drift * 0.35;
+        for (const sym of state.assetList) state.assets[sym].effects.push({ ...effect });
+      } else if (effect.kind === 'sector') {
+        for (const sym of state.assetList) {
+          const asset = state.assets[sym];
+          if (asset.sector === effect.sector) asset.effects.push({ ...effect });
+        }
+      } else if (effect.kind === 'symbol') {
+        const asset = state.assets[effect.symbol];
+        asset.effects.push({ ...effect });
+        asset.anchor *= 1 + effect.drift * 10;
+        if (effect.squeeze) asset.squeezeMeter = clamp(asset.squeezeMeter + 22, 0, 100);
+      }
+    }
+
+    function generateEvent() {
+      const scenario = state.scenario;
+      const eventType = weightedPick([
+        { value: 'macroBull', weight: scenario.weights.macroBull },
+        { value: 'macroBear', weight: scenario.weights.macroBear },
+        { value: 'sectorBull', weight: scenario.weights.sectorBull },
+        { value: 'sectorBear', weight: scenario.weights.sectorBear },
+        { value: 'companyBull', weight: scenario.weights.companyBull },
+        { value: 'companyBear', weight: scenario.weights.companyBear },
+        { value: 'squeeze', weight: scenario.weights.squeeze }
+      ]);
+
+      const sectorKey = randChoice(Object.keys(SECTORS));
+      const targetSym = randChoice(state.assetList);
+      const asset = state.assets[targetSym];
+      let evt;
+
+      const macroBull = [
+        ['연준 인사 비둘기성 발언', '금리 부담 완화 기대가 성장주 전반으로 확산됩니다.'],
+        ['국채 금리 급락', '멀티플 확장 기대가 살아나며 위험자산 선호가 강해집니다.'],
+        ['대형 자금 유입 기사', '기관 순매수 뉴스가 전반적 심리를 받칩니다.']
+      ];
+      const macroBear = [
+        ['예상 밖 CPI 재가속', '금리 고점 우려로 고평가 구간이 압박받습니다.'],
+        ['대형 은행 유동성 우려', '레버리지 포지션 청산 압력이 커집니다.'],
+        ['지정학 리스크 확대', '헤드라인 리스크가 변동성을 증폭시킵니다.']
+      ];
+      const sectorBull = {
+        AI: ['대형 AI 인프라 발주 확대', 'AI 서버와 모델 인프라 수요 기대가 재점화됩니다.'],
+        SEMI: ['파운드리 가동률 상향', '업사이클 기대가 반도체 전반에 번집니다.'],
+        BIO: ['FDA 일정 단축 기대', '바이오 전반에 투기적 자금이 유입됩니다.'],
+        ENR: ['원유 공급 차질', '에너지 가격 상승 기대가 관련주를 끌어올립니다.'],
+        CONS: ['소비지표 서프라이즈', '리테일과 결제주에 순환매가 붙습니다.'],
+        MEME: ['커뮤니티 집중 매수', '과열 종목에 개인 수급이 급격히 유입됩니다.']
+      };
+      const sectorBear = {
+        AI: ['AI 칩 수출 규제 우려', '밸류체인 전반이 리레이팅 압박을 받습니다.'],
+        SEMI: ['메모리 가격 약세 전망', '재고 부담과 ASP 둔화 우려가 부각됩니다.'],
+        BIO: ['임상 데이터 해석 논란', '바이오 전반 리스크 프리미엄이 확대됩니다.'],
+        ENR: ['원자재 가격 급락', '단기 수익성 기대가 후퇴합니다.'],
+        CONS: ['소비 둔화 경고', '플랫폼·리테일에 수요 둔화 우려가 퍼집니다.'],
+        MEME: ['플랫폼 규제 이슈', '개인 수급이 빠지며 과열 종목이 급락합니다.']
+      };
+      const companyBull = [
+        (a) => [`${a.symbol}, 가이던스 상향`, `${a.name}의 가이던스 상향이 확인됐습니다.`],
+        (a) => [`${a.symbol}, 전략 파트너십 체결`, `${a.name}가 신규 계약을 확보했습니다.`],
+        (a) => [`${a.symbol}, 공급 계약 수주`, `수주 공시로 단기 모멘텀이 강화됩니다.`]
+      ];
+      const companyBear = [
+        (a) => [`${a.symbol}, 실적 미스 우려`, `${a.name}에 대한 추정치 하향과 차익실현이 겹칩니다.`],
+        (a) => [`${a.symbol}, 규제 조사 헤드라인`, `불확실성 확대로 단기 디스카운트가 붙습니다.`],
+        (a) => [`${a.symbol}, 핵심 제품 지연`, `로드맵 지연 우려가 매도세를 키웁니다.`]
+      ];
+
+      if (eventType === 'macroBull') {
+        const [headline, body] = randChoice(macroBull);
+        evt = { scope: 'Macro', severity: 'good', headline, body, effect: { kind: 'global', drift: 0.00085, vol: 0.22, duration: 34 } };
+      }
+      if (eventType === 'macroBear') {
+        const [headline, body] = randChoice(macroBear);
+        evt = { scope: 'Macro', severity: 'bad', headline, body, effect: { kind: 'global', drift: -0.0010, vol: 0.34, duration: 36 } };
+      }
+      if (eventType === 'sectorBull') {
+        const [headline, body] = sectorBull[sectorKey];
+        evt = { scope: sectorKey, severity: 'good', headline, body, effect: { kind: 'sector', sector: sectorKey, drift: 0.0013, vol: 0.16, duration: 28 } };
+      }
+      if (eventType === 'sectorBear') {
+        const [headline, body] = sectorBear[sectorKey];
+        evt = { scope: sectorKey, severity: 'bad', headline, body, effect: { kind: 'sector', sector: sectorKey, drift: -0.0014, vol: 0.22, duration: 30 } };
+      }
+      if (eventType === 'companyBull') {
+        const [headline, body] = randChoice(companyBull)(asset);
+        evt = { scope: asset.symbol, severity: 'good', headline, body, symbol: asset.symbol, direction: 1, effect: { kind: 'symbol', symbol: asset.symbol, drift: 0.0022, vol: 0.24, duration: 38 } };
+      }
+      if (eventType === 'companyBear') {
+        const [headline, body] = randChoice(companyBear)(asset);
+        evt = { scope: asset.symbol, severity: 'bad', headline, body, symbol: asset.symbol, direction: -1, effect: { kind: 'symbol', symbol: asset.symbol, drift: -0.0024, vol: 0.27, duration: 40 } };
+      }
+      if (eventType === 'squeeze') {
+        const candidates = state.assetList.map(sym => state.assets[sym]).sort((a, b) => b.shortInterest - a.shortInterest);
+        const target = Math.random() < 0.7 ? candidates[0] : randChoice(candidates.slice(0, 4));
+        evt = {
+          scope: target.symbol,
+          severity: 'warn',
+          headline: `${target.symbol}, 숏 스퀴즈 트리거`,
+          body: `높은 공매도 잔고가 ${target.name}에 커버링 압력을 유입시킵니다.`,
+          symbol: target.symbol,
+          direction: 1,
+          effect: { kind: 'symbol', symbol: target.symbol, drift: 0.0034 + target.shortInterest * 0.01, vol: 0.34, duration: 22, squeeze: true }
+        };
+      }
+
+      applyEventEffect(evt.effect);
+      addNews(evt, true);
+      if (evt.effect.kind === 'symbol') {
+        state.assets[evt.effect.symbol].eventMarkers.push({ day: state.day, minute: state.marketMinute, text: evt.headline, severity: evt.severity });
+      }
+      state.eventSchedule = Math.floor(rand(16, 42));
+    }
+
+    function updateEffects(asset) {
+      let drift = 0;
+      let volBoost = 0;
+      asset.effects = asset.effects.filter((fx) => {
+        fx.duration -= 1;
+        if (fx.duration > 0) {
+          drift += fx.drift;
+          volBoost += fx.vol;
+          return true;
+        }
+        return false;
+      });
+      asset.squeezeMeter = clamp(asset.squeezeMeter * 0.97, 0, 100);
+      return { drift, volBoost };
+    }
+
+    function stepAsset(asset) {
+      const fx = updateEffects(asset);
+      const sectorBias = state.scenario.sectorBias[asset.sector] || 0;
+      const marketDrift = state.scenario.regime.drift * asset.beta;
+      const anchorPull = clamp((asset.anchor - asset.price) / asset.anchor, -0.03, 0.03) * 0.11;
+      const momentum = clamp(asset.trend * 0.78, -0.02, 0.02);
+      const squeezeBoost = asset.squeezeMeter > 0 && asset.shortInterest > 0.2 && asset.price > asset.prevClose ? asset.squeezeMeter * 0.00003 : 0;
+      const vol = asset.vol * state.scenario.regime.vol * (1 + fx.volBoost + asset.squeezeMeter / 140);
+      const move = marketDrift + sectorBias + fx.drift + anchorPull + momentum + squeezeBoost + randn() * vol;
+      const open = asset.price;
+      const close = Math.max(0.8, open * Math.exp(clamp(move, -0.18, 0.18)));
+      const wick = Math.max(0.01, open * (asset.vol * rand(0.2, 1.0) + Math.abs(move) * rand(0.14, 0.5)));
+      const high = Math.max(open, close) + wick * rand(0.18, 0.92);
+      const low = Math.max(0.5, Math.min(open, close) - wick * rand(0.18, 0.92));
+      const volume = Math.floor((90000 + Math.abs(move) * 3200000 + rand(0, 110000)) * (1 + fx.volBoost * 1.4 + asset.squeezeMeter / 90 + (asset.sector === 'MEME' ? 0.28 : 0)));
+
+      asset.price = close;
+      asset.close = close;
+      asset.high = Math.max(asset.high, high);
+      asset.low = Math.min(asset.low, low);
+      asset.lastVolume = volume;
+      asset.dayPV += close * volume;
+      asset.dayVol += volume;
+      asset.changePct = ((close / asset.prevClose) - 1) * 100;
+      asset.trend = asset.trend * 0.84 + (close / open - 1) * 6;
+      asset.spreadBps = clamp(1.3 + state.scenario.regime.vol * 0.8 + fx.volBoost * 2.6 + asset.squeezeMeter / 18 + asset.vol * 100, 1, 25);
+      asset.liquidity = clamp(100 - asset.spreadBps * 3.4, 12, 95);
+
+      asset.candles.push({
+        t: state.day * 10000 + state.marketMinute,
+        day: state.day,
+        minute: state.marketMinute,
+        open,
+        high,
+        low,
+        close,
+        volume,
+        vwap: asset.dayPV / Math.max(1, asset.dayVol),
+        event: null
+      });
+      if (asset.candles.length > 2600) asset.candles.shift();
+      return asset.candles[asset.candles.length - 1];
+    }
+
+    function applyHoldingCosts() {
+      for (const pos of Object.values(state.positions)) {
+        if (pos.qty < 0) {
+          const asset = state.assets[pos.symbol];
+          const borrowCost = Math.abs(pos.qty * asset.price) * (asset.borrow / 252 / 390);
+          state.cash -= borrowCost;
+        }
+      }
+    }
+
+    function recordOrderHistory(entry) {
+      state.orderHistory.unshift(entry);
+      state.orderHistory = state.orderHistory.slice(0, 140);
+    }
+
+    function onTradeReaction(symbol, direction) {
+      for (const rw of state.reactionWindows) {
+        if (rw.used) continue;
+        if (rw.symbol !== symbol || rw.direction !== direction) continue;
+        if (state.day > rw.expiresDay || (state.day === rw.expiresDay && state.marketMinute > rw.expiresMinute)) continue;
+        rw.used = true;
+        addToast('blue', '빠른 반응', `${symbol} 뉴스 직후 방향성 진입에 성공했습니다.`);
+        return;
+      }
+    }
+
+    function executeFill(symbol, qtyDelta, leverage, fillPrice, source = 'market', orderRef = null) {
+      if (!qtyDelta) return false;
+      const asset = state.assets[symbol];
+      const fee = commission(qtyDelta);
+      const prev = state.positions[symbol] || null;
+      const prevQty = prev ? prev.qty : 0;
+      const prevAvg = prev ? prev.avg : 0;
+      const prevMargin = prev ? prev.margin : 0;
+      const nextQty = prevQty + qtyDelta;
+      let cashDelta = -fee;
+      let realized = 0;
+      let newPosition = prev ? { ...prev } : null;
+
+      if (!prev || prevQty === 0 || Math.sign(prevQty) === Math.sign(qtyDelta)) {
+        const addMargin = Math.abs(fillPrice * qtyDelta) / leverage;
+        if (state.cash < addMargin + fee) {
+          addToast('bad', '주문 거부', '가용 현금이 부족합니다. 레버리지 또는 수량을 낮추세요.');
+          recordOrderHistory({ timestamp: timeLabel(state.day, state.marketMinute), symbol, side: qtyDelta > 0 ? 'LONG' : 'SHORT', qty: Math.abs(qtyDelta), leverage, type: source.toUpperCase(), status: 'REJECTED', note: 'INSUFFICIENT CASH' });
+          return false;
+        }
+        cashDelta -= addMargin;
+        const newQty = prevQty + qtyDelta;
+        const newAvg = prevQty === 0 ? fillPrice : ((prevAvg * Math.abs(prevQty)) + (fillPrice * Math.abs(qtyDelta))) / Math.abs(newQty);
+        const margin = prevMargin + addMargin;
+        newPosition = {
+          symbol,
+          qty: newQty,
+          avg: newAvg,
+          margin,
+          leverage: Math.abs(newQty * newAvg) / Math.max(1, margin),
+          createdAt: prev && prev.createdAt ? prev.createdAt : timeLabel(state.day, state.marketMinute)
+        };
+      } else {
+        const closingQtyAbs = Math.min(Math.abs(prevQty), Math.abs(qtyDelta));
+        const closingQtySigned = closingQtyAbs * Math.sign(prevQty);
+        realized += (fillPrice - prevAvg) * closingQtySigned;
+        const releasedMargin = prevMargin * (closingQtyAbs / Math.abs(prevQty));
+        cashDelta += releasedMargin + realized;
+
+        const remainingQty = prevQty + qtyDelta;
+        if (remainingQty === 0) {
+          newPosition = null;
+        } else if (Math.sign(remainingQty) === Math.sign(prevQty)) {
+          const margin = prevMargin - releasedMargin;
+          newPosition = {
+            ...prev,
+            qty: remainingQty,
+            avg: prevAvg,
+            margin,
+            leverage: Math.abs(remainingQty * prevAvg) / Math.max(1, margin)
+          };
+        } else {
+          const openQty = Math.abs(remainingQty);
+          const openSigned = remainingQty;
+          const addMargin = Math.abs(fillPrice * openQty) / leverage;
+          if (state.cash + cashDelta < addMargin) {
+            // Not enough cash to reverse fully. Fall back to close-only.
+            if (Math.abs(qtyDelta) > Math.abs(prevQty)) {
+              const closeOnlyQty = -prevQty;
+              state.cash += cashDelta;
+              delete state.positions[symbol];
+              if (Math.abs(realized) > 0.0001) {
+                state.positionHistory.unshift({ symbol, side: prevQty > 0 ? 'LONG' : 'SHORT', qty: closingQtyAbs, entryAvg: prevAvg, exitPrice: fillPrice, realized, leverage: prev.leverage, openedAt: prev.createdAt, closedAt: timeLabel(state.day, state.marketMinute) });
+              }
+              recordOrderHistory({ timestamp: timeLabel(state.day, state.marketMinute), symbol, side: closeOnlyQty > 0 ? 'LONG' : 'SHORT', qty: Math.abs(closeOnlyQty), leverage: prev.leverage, type: source.toUpperCase(), status: 'FILLED', fillPrice, note: 'CLOSE ONLY: CASH LIMIT' });
+              addToast(realized >= 0 ? 'good' : 'bad', `${symbol} 포지션 청산`, `${fmtMoney(realized)} 실현`);
+              return true;
+            }
+          }
+          cashDelta -= addMargin;
+          newPosition = {
+            symbol,
+            qty: openSigned,
+            avg: fillPrice,
+            margin: addMargin,
+            leverage: leverage,
+            createdAt: timeLabel(state.day, state.marketMinute)
+          };
+        }
+      }
+
+      state.cash += cashDelta;
+      if (newPosition) state.positions[symbol] = newPosition; else delete state.positions[symbol];
+
+      if (prev && prev.qty !== 0 && Math.sign(prev.qty) !== Math.sign(qtyDelta)) {
+        state.positionHistory.unshift({
+          symbol,
+          side: prev.qty > 0 ? 'LONG' : 'SHORT',
+          qty: Math.min(Math.abs(prev.qty), Math.abs(qtyDelta)),
+          entryAvg: prev.avg,
+          exitPrice: fillPrice,
+          realized,
+          leverage: prev.leverage,
+          openedAt: prev.createdAt,
+          closedAt: timeLabel(state.day, state.marketMinute)
+        });
+        state.positionHistory = state.positionHistory.slice(0, 120);
+      }
+
+      recordOrderHistory({
+        timestamp: timeLabel(state.day, state.marketMinute),
+        symbol,
+        side: qtyDelta > 0 ? 'LONG' : 'SHORT',
+        qty: Math.abs(qtyDelta),
+        leverage,
+        type: source.toUpperCase(),
+        status: 'FILLED',
+        fillPrice,
+        note: realized ? `REALIZED ${fmtMoney(realized)}` : ''
+      });
+
+      if (qtyDelta > 0) onTradeReaction(symbol, 1); else onTradeReaction(symbol, -1);
+      addToast(realized >= 0 ? 'good' : 'bad', `${symbol} ${qtyDelta > 0 ? '매수/커버' : '매도/숏'} ${Math.abs(qtyDelta)}주`, `${fmtMoney(fillPrice)} 체결${realized ? ` · 실현 ${fmtMoney(realized)}` : ''}`);
+      state.needsRender = true;
+      return true;
+    }
+
+    function submitOrder() {
+      const symbol = state.selected;
+      const qty = Math.max(1, Math.floor(Number($('#orderQtyInput').value || state.orderForm.qty || 1)));
+      const leverage = clamp(Number($('#orderLeverageSelect').value || state.orderForm.leverage || 1), 1, 5);
+      const side = state.orderForm.side;
+      const orderType = state.orderForm.type;
+      const asset = state.assets[symbol];
+      const qtyDelta = side === 'long' ? qty : -qty;
+      const ts = timeLabel(state.day, state.marketMinute);
+
+      if (orderType === 'market') {
+        const fill = asset.price + slippage(asset, qtyDelta > 0 ? 'buy' : 'sell', qty);
+        executeFill(symbol, qtyDelta, leverage, fill, 'market');
+      } else {
+        const limitPrice = Number($('#limitPriceInput').value || state.orderForm.limitPrice || 0);
+        if (!(limitPrice > 0)) {
+          addToast('bad', '주문 거부', '지정가를 입력하세요.');
+          return;
+        }
+        const order = {
+          id: Math.random().toString(36).slice(2),
+          symbol,
+          side,
+          qty,
+          leverage,
+          type: 'limit',
+          limitPrice,
+          submittedAt: ts
+        };
+
+        const marketable = side === 'long' ? limitPrice >= asset.price : limitPrice <= asset.price;
+        if (marketable) {
+          const fill = side === 'long'
+            ? Math.min(limitPrice, asset.price + Math.max(0, slippage(asset, 'buy', qty)))
+            : Math.max(limitPrice, asset.price + Math.min(0, slippage(asset, 'sell', qty)));
+          executeFill(symbol, qtyDelta, leverage, fill, 'limit');
+        } else {
+          state.openOrders.unshift(order);
+          state.openOrders = state.openOrders.slice(0, 100);
+          recordOrderHistory({ timestamp: ts, symbol, side: side.toUpperCase(), qty, leverage, type: 'LIMIT', status: 'OPEN', fillPrice: null, note: `AT ${fmtMoney(limitPrice)}` });
+          addToast('blue', '오픈 오더 등록', `${symbol} ${side === 'long' ? 'LONG' : 'SHORT'} ${qty}주 @ ${fmtMoney(limitPrice)}`);
+        }
+        state.needsRender = true;
+      }
+      renderAll();
+    }
+
+    function cancelOrder(id) {
+      const idx = state.openOrders.findIndex(o => o.id === id);
+      if (idx < 0) return;
+      const order = state.openOrders[idx];
+      state.openOrders.splice(idx, 1);
+      recordOrderHistory({ timestamp: timeLabel(state.day, state.marketMinute), symbol: order.symbol, side: order.side.toUpperCase(), qty: order.qty, leverage: order.leverage, type: 'LIMIT', status: 'CANCELLED', fillPrice: null, note: `AT ${fmtMoney(order.limitPrice)}` });
+      addToast('warn', '오더 취소', `${order.symbol} ${order.side.toUpperCase()} ${order.qty}주 지정가 주문 취소`);
+      state.needsRender = true;
+      renderAll();
+    }
+
+    function processOpenOrdersForAsset(asset, candle) {
+      const remaining = [];
+      for (const order of state.openOrders) {
+        if (order.symbol !== asset.symbol) {
+          remaining.push(order);
+          continue;
+        }
+        const shouldFill = order.side === 'long' ? candle.low <= order.limitPrice : candle.high >= order.limitPrice;
+        if (!shouldFill) {
+          remaining.push(order);
+          continue;
+        }
+        const qtyDelta = order.side === 'long' ? order.qty : -order.qty;
+        const filled = executeFill(order.symbol, qtyDelta, order.leverage, order.limitPrice, 'limit', order.id);
+        if (!filled) remaining.push(order);
+      }
+      state.openOrders = remaining;
+    }
+
+    function closePosition(symbol, fraction = 1) {
+      const pos = state.positions[symbol];
+      if (!pos) return;
+      const qty = Math.max(1, Math.floor(Math.abs(pos.qty) * fraction));
+      const qtyDelta = pos.qty > 0 ? -qty : qty;
+      const asset = state.assets[symbol];
+      const fill = asset.price + slippage(asset, qtyDelta > 0 ? 'buy' : 'sell', qty);
+      executeFill(symbol, qtyDelta, pos.leverage, fill, 'market');
+      renderAll();
+    }
+
+    function forceReduceWorstPosition() {
+      const entries = Object.values(state.positions).map(pos => {
+        const asset = state.assets[pos.symbol];
+        return { symbol: pos.symbol, notional: Math.abs(pos.qty * asset.price), pnl: unrealizedPnl(pos) };
+      });
+      if (!entries.length) return;
+      entries.sort((a, b) => b.notional - a.notional || a.pnl - b.pnl);
+      closePosition(entries[0].symbol, 0.5);
+      addToast('bad', '마진 강제 축소', `${entries[0].symbol} 포지션의 50%가 강제 축소되었습니다.`);
+    }
+
+    function maybeMarginCall() {
+      let guard = 0;
+      while (marginHealth() < 1 && Object.keys(state.positions).length && guard < 5) {
+        forceReduceWorstPosition();
+        guard += 1;
+      }
+    }
+
+    function nextDay() {
+      state.day += 1;
+      state.marketMinute = 0;
+      for (const sym of state.assetList) {
+        const asset = state.assets[sym];
+        asset.prevClose = asset.price;
+        asset.open = asset.price;
+        asset.high = asset.price;
+        asset.low = asset.price;
+        asset.close = asset.price;
+        asset.dayPV = 0;
+        asset.dayVol = 0;
+        asset.changePct = 0;
+        asset.anchor = asset.price * (1 + (state.scenario.sectorBias[asset.sector] || 0) * 120 + rand(-0.012, 0.012));
+      }
+      addNews({ scope: 'System', severity: 'blue', headline: `Day ${state.day} 개장`, body: '전일 기준가가 리셋됐습니다. 미체결 오더와 포지션은 유지됩니다.' }, false);
+      state.eventSchedule = Math.floor(rand(12, 28));
+    }
+
+    function stepMinute() {
+      state.marketMinute += 1;
+      for (const sym of state.assetList) {
+        const candle = stepAsset(state.assets[sym]);
+        processOpenOrdersForAsset(state.assets[sym], candle);
+      }
+      applyHoldingCosts();
+      state.eventSchedule -= 1;
+      if (state.eventSchedule <= 0) generateEvent();
+      maybeEndAutoSlow();
+      maybeMarginCall();
+      if (state.marketMinute >= 390) nextDay();
+      state.needsRender = true;
+    }
+
+    function jumpToNextCatalyst() {
+      const before = state.news.length;
+      let safety = 520;
+      while (state.news.length === before && safety-- > 0) {
+        stepMinute();
+      }
+      renderAll();
+    }
+
+    function aggregateCandles(asset, frame) {
+      const src = asset.candles;
+      if (frame === 1) return src.slice(-220);
+      const result = [];
+      let bucket = null;
+      let bucketIndex = null;
+      for (const c of src) {
+        const idx = `${c.day}-${Math.floor(c.minute / frame)}`;
+        if (idx !== bucketIndex) {
+          if (bucket) result.push(bucket);
+          bucketIndex = idx;
+          bucket = { ...c };
+        } else {
+          bucket.high = Math.max(bucket.high, c.high);
+          bucket.low = Math.min(bucket.low, c.low);
+          bucket.close = c.close;
+          bucket.volume += c.volume;
+          bucket.vwap = c.vwap;
+          if (c.event) bucket.event = c.event;
+        }
+      }
+      if (bucket) result.push(bucket);
+      return result.slice(-220);
+    }
+
+    function ma(series, n, accessor = (d) => d.close) {
+      const out = [];
+      let sum = 0;
+      for (let i = 0; i < series.length; i++) {
+        sum += accessor(series[i]);
+        if (i >= n) sum -= accessor(series[i - n]);
+        out.push(i >= n - 1 ? sum / n : null);
+      }
+      return out;
+    }
+
+    function drawChart() {
+      const canvas = $('#chartCanvas');
+      const rect = canvas.getBoundingClientRect();
+      const dpr = window.devicePixelRatio || 1;
+      const w = Math.max(300, Math.floor(rect.width));
+      const h = Math.max(320, Math.floor(rect.height));
+      if (canvas.width !== Math.floor(w * dpr) || canvas.height !== Math.floor(h * dpr)) {
+        canvas.width = Math.floor(w * dpr);
+        canvas.height = Math.floor(h * dpr);
+      }
+      const ctx = canvas.getContext('2d');
+      ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+      ctx.clearRect(0, 0, w, h);
+
+      const asset = state.assets[state.selected];
+      const data = aggregateCandles(asset, state.timeframe);
+      if (!data.length) return;
+      const padL = 14;
+      const padR = 68;
+      const padT = 16;
+      const padB = 24;
+      const volumeH = Math.floor(h * 0.2);
+      const chartH = h - volumeH - padT - padB - 10;
+      const chartY = padT;
+      const volY = padT + chartH + 12;
+      const plotW = w - padL - padR;
+      const visible = data.slice(-Math.min(data.length, Math.max(42, Math.floor(plotW / 10))));
+      const highs = visible.map(d => d.high);
+      const lows = visible.map(d => d.low);
+      const minP = Math.min(...lows);
+      const maxP = Math.max(...highs);
+      const range = Math.max(0.01, maxP - minP);
+      const paddedMin = minP - range * 0.08;
+      const paddedMax = maxP + range * 0.08;
+      const volumeMax = Math.max(...visible.map(d => d.volume), 1);
+      const candleW = Math.max(3, plotW / visible.length * 0.72);
+      const step = plotW / visible.length;
+      const priceToY = (p) => chartY + (1 - (p - paddedMin) / (paddedMax - paddedMin)) * chartH;
+      const indexToX = (i) => padL + i * step + step / 2;
+      const ma20 = ma(visible, Math.min(20, visible.length));
+      const ma50 = ma(visible, Math.min(50, visible.length));
+
+      const grad = ctx.createLinearGradient(0, 0, 0, h);
+      grad.addColorStop(0, 'rgba(14, 22, 38, 1)');
+      grad.addColorStop(1, 'rgba(7, 12, 20, 1)');
+      ctx.fillStyle = grad;
+      ctx.fillRect(0, 0, w, h);
+
+      ctx.strokeStyle = COLORS.grid;
+      ctx.lineWidth = 1;
+      for (let i = 0; i <= 6; i++) {
+        const y = chartY + (chartH / 6) * i;
+        ctx.beginPath();
+        ctx.moveTo(padL, y);
+        ctx.lineTo(w - padR, y);
+        ctx.stroke();
+        const price = lerp(paddedMax, paddedMin, i / 6);
+        ctx.fillStyle = COLORS.muted;
+        ctx.font = '11px Inter, sans-serif';
+        ctx.fillText(price.toFixed(price >= 100 ? 2 : 3), w - padR + 8, y + 4);
+      }
+      for (let i = 0; i <= 8; i++) {
+        const x = padL + (plotW / 8) * i;
+        ctx.beginPath();
+        ctx.moveTo(x, chartY);
+        ctx.lineTo(x, volY + volumeH);
+        ctx.stroke();
+      }
+
+      function plotLine(color, width, accessor) {
+        ctx.beginPath();
+        ctx.strokeStyle = color;
+        ctx.lineWidth = width;
+        let started = false;
+        visible.forEach((d, i) => {
+          const v = accessor(d, i);
+          if (v == null) return;
+          const x = indexToX(i);
+          const y = priceToY(v);
+          if (!started) { ctx.moveTo(x, y); started = true; }
+          else ctx.lineTo(x, y);
+        });
+        ctx.stroke();
+      }
+      plotLine(COLORS.vwap, 1.15, d => d.vwap);
+      plotLine(COLORS.ma20, 1.35, (_, i) => ma20[i]);
+      plotLine(COLORS.ma50, 1.35, (_, i) => ma50[i]);
+
+      visible.forEach((d, i) => {
+        const x = indexToX(i);
+        const openY = priceToY(d.open);
+        const closeY = priceToY(d.close);
+        const highY = priceToY(d.high);
+        const lowY = priceToY(d.low);
+        const up = d.close >= d.open;
+        ctx.strokeStyle = up ? COLORS.up : COLORS.down;
+        ctx.lineWidth = 1.15;
+        ctx.beginPath();
+        ctx.moveTo(x, highY);
+        ctx.lineTo(x, lowY);
+        ctx.stroke();
+        const bodyTop = Math.min(openY, closeY);
+        const bodyH = Math.max(2, Math.abs(closeY - openY));
+        ctx.fillStyle = up ? COLORS.up : COLORS.down;
+        ctx.strokeStyle = COLORS.candleBorder;
+        ctx.fillRect(x - candleW / 2, bodyTop, candleW, bodyH);
+        ctx.strokeRect(x - candleW / 2, bodyTop, candleW, bodyH);
+
+        const volBarH = (d.volume / volumeMax) * volumeH;
+        ctx.globalAlpha = 0.42;
+        ctx.fillRect(x - candleW / 2, volY + volumeH - volBarH, candleW, volBarH);
+        ctx.globalAlpha = 1;
+      });
+
+      const currentY = priceToY(visible[visible.length - 1].close);
+      ctx.setLineDash([6, 5]);
+      ctx.strokeStyle = asset.changePct >= 0 ? 'rgba(41, 201, 132, .72)' : 'rgba(255, 106, 132, .72)';
+      ctx.beginPath();
+      ctx.moveTo(padL, currentY);
+      ctx.lineTo(w - padR, currentY);
+      ctx.stroke();
+      ctx.setLineDash([]);
+      ctx.fillStyle = asset.changePct >= 0 ? COLORS.up : COLORS.down;
+      ctx.fillRect(w - padR + 3, currentY - 10, padR - 6, 20);
+      ctx.fillStyle = '#07101a';
+      ctx.font = 'bold 11px Inter, sans-serif';
+      ctx.fillText(visible[visible.length - 1].close.toFixed(2), w - padR + 10, currentY + 4);
+
+      const pos = currentPosition(asset.symbol);
+      if (pos) {
+        const y = priceToY(pos.avg);
+        ctx.strokeStyle = pos.qty > 0 ? 'rgba(97, 169, 255, 0.72)' : 'rgba(244, 197, 98, 0.78)';
+        ctx.setLineDash([4, 4]);
+        ctx.beginPath();
+        ctx.moveTo(padL, y);
+        ctx.lineTo(w - padR, y);
+        ctx.stroke();
+        ctx.setLineDash([]);
+        ctx.fillStyle = 'rgba(7, 12, 20, 0.96)';
+        ctx.fillRect(padL + 8, y - 12, 120, 22);
+        ctx.fillStyle = pos.qty > 0 ? COLORS.ma20 : COLORS.ma50;
+        ctx.font = 'bold 11px Inter, sans-serif';
+        ctx.fillText(`${pos.qty > 0 ? 'LONG' : 'SHORT'} AVG ${pos.avg.toFixed(2)}`, padL + 14, y + 3);
+      }
+
+      const selectedOrders = state.openOrders.filter(o => o.symbol === asset.symbol);
+      selectedOrders.forEach((order) => {
+        const y = priceToY(order.limitPrice);
+        ctx.setLineDash([2, 6]);
+        ctx.strokeStyle = order.side === 'long' ? 'rgba(97, 169, 255, 0.6)' : 'rgba(255, 106, 132, 0.6)';
+        ctx.beginPath();
+        ctx.moveTo(padL, y);
+        ctx.lineTo(w - padR, y);
+        ctx.stroke();
+        ctx.setLineDash([]);
+      });
+
+      visible.forEach((d, i) => {
+        const marker = asset.eventMarkers.find(m => m.day === d.day && Math.abs(m.minute - d.minute) < state.timeframe);
+        if (!marker) return;
+        const x = indexToX(i);
+        ctx.fillStyle = marker.severity === 'bad' ? COLORS.down : marker.severity === 'warn' ? COLORS.ma50 : COLORS.ma20;
+        ctx.beginPath();
+        ctx.arc(x, chartY + 10, 4.5, 0, Math.PI * 2);
+        ctx.fill();
+      });
+
+      ctx.fillStyle = COLORS.muted;
+      ctx.font = '11px Inter, sans-serif';
+      for (let i = 0; i < visible.length; i += Math.max(1, Math.floor(visible.length / 6))) {
+        const d = visible[i];
+        const x = indexToX(i) - 10;
+        const hh = Math.floor((570 + d.minute) / 60);
+        const mm = (570 + d.minute) % 60;
+        ctx.fillText(`${String(hh).padStart(2, '0')}:${String(mm).padStart(2, '0')}`, x, h - 7);
+      }
+
+      const hover = state.hover;
+      if (hover.x != null && hover.y != null && hover.x > padL && hover.x < w - padR && hover.y > chartY && hover.y < volY + volumeH) {
+        const idx = clamp(Math.floor((hover.x - padL) / step), 0, visible.length - 1);
+        const d = visible[idx];
+        const x = indexToX(idx);
+        ctx.strokeStyle = 'rgba(214, 226, 255, 0.18)';
+        ctx.setLineDash([4, 4]);
+        ctx.beginPath();
+        ctx.moveTo(x, chartY);
+        ctx.lineTo(x, volY + volumeH);
+        ctx.stroke();
+        ctx.beginPath();
+        ctx.moveTo(padL, hover.y);
+        ctx.lineTo(w - padR, hover.y);
+        ctx.stroke();
+        ctx.setLineDash([]);
+
+        const info = [`O ${d.open.toFixed(2)}`, `H ${d.high.toFixed(2)}`, `L ${d.low.toFixed(2)}`, `C ${d.close.toFixed(2)}`, `V ${(d.volume / 1000).toFixed(0)}k`].join('  ');
+        const boxW = Math.min(320, ctx.measureText(info).width + 18);
+        ctx.fillStyle = 'rgba(6, 12, 23, 0.9)';
+        ctx.fillRect(padL + 8, chartY + 8, boxW, 24);
+        ctx.fillStyle = COLORS.text;
+        ctx.font = 'bold 11px Inter, sans-serif';
+        ctx.fillText(info, padL + 14, chartY + 24);
+      }
+    }
+
+    function renderTopbar() {
+      const eq = equity();
+      const used = usedMargin();
+      $('#clockValue').textContent = timeLabel(state.day, state.marketMinute);
+      $('#regimeValue').textContent = state.scenario.regime.name;
+      $('#equityValue').textContent = fmtMoney(eq);
+      $('#equityValue').className = `metric-value mono ${eq >= 100000 ? 'good' : 'bad'}`;
+      $('#cashValue').textContent = fmtMoney(state.cash);
+      $('#cashValue').className = `metric-value mono ${state.cash >= 0 ? 'good' : 'bad'}`;
+      $('#usedMarginValue').textContent = fmtMoney(used, 0);
+      $('#usedMarginValue').className = `metric-value mono ${used > eq * 0.75 ? 'warn' : 'blue'}`;
+      $('#speedInfo').textContent = `${state.paused ? 'Paused' : `${state.speed}x`} · ${state.autoSlow ? 'Auto Slow ON' : 'Auto Slow OFF'}`;
+      const health = marginHealth();
+      $('#healthBadge').textContent = `Health ${health === 999 ? '999' : health.toFixed(2)}`;
+      $('#healthBadge').className = `badge ${health > 2 ? 'good' : health > 1.2 ? 'warn' : 'bad'}`;
+    }
+
+    function renderWatchlist() {
+      const grouped = {};
+      state.assetList.forEach(sym => {
+        const asset = state.assets[sym];
+        if (!grouped[asset.sector]) grouped[asset.sector] = [];
+        grouped[asset.sector].push(asset);
+      });
+      $('#watchlist').innerHTML = Object.keys(grouped).map(sector => `
+        <div class="watch-group">
+          <div class="watch-group-title">${SECTORS[sector].name}</div>
+          ${grouped[sector].map(asset => `
+            <div class="watch-item ${asset.symbol === state.selected ? 'active' : ''}" data-symbol="${asset.symbol}">
+              <div class="watch-pill"></div>
+              <div class="info">
+                <div class="watch-symbol">${asset.symbol}</div>
+                <div class="watch-name">${asset.name}</div>
+              </div>
+              <div class="pricebox watch-price ${asset.changePct >= 0 ? 'good' : 'bad'}">
+                <div class="mono">${asset.price.toFixed(2)}</div>
+                <div class="watch-name ${asset.changePct >= 0 ? 'good' : 'bad'}">${fmtPct(asset.changePct)}</div>
+              </div>
+            </div>
+          `).join('')}
+        </div>
+      `).join('');
+      $$('#watchlist .watch-item').forEach(el => el.addEventListener('click', () => {
+        state.selected = el.dataset.symbol;
+        const asset = state.assets[state.selected];
+        $('#limitPriceInput').value = asset.price.toFixed(2);
+        if (!state.watchlistPinned) $('#watchlistPanel').classList.remove('expanded');
+        renderAll();
+      }));
+    }
+
+    function renderChartHeader() {
+      const asset = state.assets[state.selected];
+      $('#chartSubtitle').textContent = `${asset.symbol} · ${asset.name}`;
+      $('#selectedInstrument').textContent = `${asset.symbol} · ${asset.name}`;
+      $('#selectedSectorBadge').textContent = SECTORS[asset.sector].name;
+      $('#selectedSectorBadge').className = `badge ${SECTORS[asset.sector].tone}`;
+      $('#selectedPriceBadge').textContent = fmtMoney(asset.price);
+      $('#selectedChangeBadge').textContent = fmtPct(asset.changePct);
+      $('#selectedChangeBadge').className = `badge ${asset.changePct >= 0 ? 'good' : 'bad'} mono`;
+      const pos = currentPosition(asset.symbol);
+      const pills = [];
+      pills.push(`<span class="badge neutral">VWAP ${(asset.dayVol ? asset.dayPV / asset.dayVol : asset.price).toFixed(2)}</span>`);
+      pills.push(`<span class="badge neutral">Spread ${asset.spreadBps.toFixed(1)} bps</span>`);
+      pills.push(`<span class="badge neutral">Borrow ${(asset.borrow * 100).toFixed(1)}%</span>`);
+      if (pos) pills.push(`<span class="badge ${pos.qty > 0 ? 'blue' : 'warn'}">${pos.qty > 0 ? 'LONG' : 'SHORT'} ${Math.abs(pos.qty)}주 @ ${pos.avg.toFixed(2)}</span>`);
+      $('#chartPillRow').innerHTML = pills.join('');
+    }
+
+    function renderOrderPanel() {
+      const asset = state.assets[state.selected];
+      const pos = currentPosition(asset.symbol);
+      const pnl = pos ? unrealizedPnl(pos) : 0;
+      $('#orderInstrumentCard').innerHTML = `
+        <div>
+          <div class="symbol">${asset.symbol}</div>
+          <div class="sub">${asset.name} · ${SECTORS[asset.sector].name}</div>
+        </div>
+        <div style="text-align:right;">
+          <div class="price ${asset.changePct >= 0 ? 'good' : 'bad'} mono">${asset.price.toFixed(2)}</div>
+          <div class="sub ${asset.changePct >= 0 ? 'good' : 'bad'}">${fmtPct(asset.changePct)}</div>
+        </div>
+      `;
+
+      $$('[data-order-side]').forEach(btn => btn.classList.toggle('active', btn.dataset.orderSide === state.orderForm.side));
+      $$('[data-order-type]').forEach(btn => btn.classList.toggle('active', btn.dataset.orderType === state.orderForm.type));
+      $('#limitFieldWrap').style.display = state.orderForm.type === 'limit' ? 'flex' : 'none';
+      const qty = Math.max(1, Number($('#orderQtyInput').value || state.orderForm.qty || 1));
+      const lev = clamp(Number($('#orderLeverageSelect').value || state.orderForm.leverage || 1), 1, 5);
+      const notional = qty * asset.price;
+      const initialMargin = notional / lev;
+      const estSlip = state.orderForm.type === 'market' ? Math.abs(slippage(asset, state.orderForm.side === 'long' ? 'buy' : 'sell', qty)) : 0;
+      const previewHealth = maintenanceRequirement() > 0 ? (equity() - initialMargin) / Math.max(1, maintenanceRequirement() + notional * maintenanceRate(lev)) : 999;
+      $('#orderPreview').innerHTML = `
+        <div class="preview-item"><div class="k">명목금액</div><div class="v mono">${fmtMoney(notional, 0)}</div></div>
+        <div class="preview-item"><div class="k">초기 증거금</div><div class="v mono">${fmtMoney(initialMargin, 0)}</div></div>
+        <div class="preview-item"><div class="k">예상 슬리피지</div><div class="v mono">${fmtMoney(estSlip)}</div></div>
+        <div class="preview-item"><div class="k">추정 유지건전성</div><div class="v mono ${previewHealth > 1.4 ? 'good' : previewHealth > 1 ? 'warn' : 'bad'}">${previewHealth === 999 ? '999' : previewHealth.toFixed(2)}</div></div>
+      `;
+
+      const book = buildOrderBookPreview(asset);
+      $('#orderBookCard').innerHTML = `
+        <div style="display:flex; justify-content:space-between; gap:10px; align-items:center; margin-bottom:10px;">
+          <div class="panel-title">오더북 프리뷰</div>
+          <span class="badge warn">TODO 연결</span>
+        </div>
+        <div class="sub" style="margin-bottom:10px;">시각적 깊이만 제공됩니다. 오픈 오더 매칭은 아직 사용하지 않습니다.</div>
+        <table>
+          <thead><tr><th>Bid Size</th><th>Bid</th><th>Ask</th><th>Ask Size</th></tr></thead>
+          <tbody>
+            ${book.map(row => `<tr><td class="mono">${row.bidSize}</td><td class="mono good">${row.bid.toFixed(2)}</td><td class="mono bad">${row.ask.toFixed(2)}</td><td class="mono">${row.askSize}</td></tr>`).join('')}
+          </tbody>
+        </table>
+      `;
+
+      if (!document.activeElement || !['orderQtyInput', 'limitPriceInput'].includes(document.activeElement.id)) {
+        $('#orderQtyInput').value = state.orderForm.qty;
+        $('#orderLeverageSelect').value = String(state.orderForm.leverage);
+        if ((state.orderForm.type === 'limit' && (!$('#limitPriceInput').value || document.activeElement.id !== 'limitPriceInput')) || !$('#limitPriceInput').value) {
+          $('#limitPriceInput').value = asset.price.toFixed(2);
+        }
+      }
+
+      const disableHalf = !pos;
+      $('#closeHalfBtn').disabled = disableHalf;
+      $('#closeAllSelectedBtn').disabled = disableHalf;
+      $('#closeHalfBtn').style.opacity = disableHalf ? 0.5 : 1;
+      $('#closeAllSelectedBtn').style.opacity = disableHalf ? 0.5 : 1;
+      $('#clearOrderBtn').style.opacity = 1;
+    }
+
+    function buildOrderBookPreview(asset) {
+      const levels = [];
+      const step = Math.max(0.01, asset.price * asset.spreadBps / 10000);
+      for (let i = 0; i < 5; i++) {
+        levels.push({
+          bid: asset.price - step * (i + 1),
+          ask: asset.price + step * (i + 1),
+          bidSize: Math.round(200 + asset.liquidity * 9 + Math.random() * 420),
+          askSize: Math.round(200 + asset.liquidity * 9 + Math.random() * 420)
+        });
+      }
+      return levels;
+    }
+
+    function sectorAverages() {
+      const map = {};
+      for (const key of Object.keys(SECTORS)) map[key] = [];
+      state.assetList.forEach(sym => map[state.assets[sym].sector].push(state.assets[sym].changePct));
+      return Object.fromEntries(Object.entries(map).map(([k, arr]) => [k, arr.length ? arr.reduce((a, b) => a + b, 0) / arr.length : 0]));
+    }
+
+    function renderSectorStrip() {
+      const avgs = sectorAverages();
+      $('#sectorStrip').innerHTML = Object.keys(SECTORS).map(key => {
+        const v = avgs[key];
+        return `
+          <div class="sector-card">
+            <div class="metric-label">${SECTORS[key].name}</div>
+            <div class="metric-value ${v >= 0 ? 'good' : 'bad'} mono">${fmtPct(v)}</div>
+            <div class="sub">Bias ${(state.scenario.sectorBias[key] * 10000).toFixed(1)} bp</div>
+          </div>
+        `;
+      }).join('');
+    }
+
+    function renderSymbolBars() {
+      const maxAbs = Math.max(1.5, ...state.assetList.map(sym => Math.abs(state.assets[sym].changePct)));
+      $('#symbolBars').innerHTML = state.assetList.map(sym => {
+        const asset = state.assets[sym];
+        const width = clamp(Math.abs(asset.changePct) / maxAbs, 0.08, 1) * 100;
+        return `
+          <div class="bar-card ${sym === state.selected ? 'active' : ''}" data-symbol="${sym}">
+            <div class="bar-head">
+              <span>${sym}</span>
+              <span class="${asset.changePct >= 0 ? 'good' : 'bad'} mono">${fmtPct(asset.changePct)}</span>
+            </div>
+            <div class="bar-track">
+              <div class="bar-fill" style="width:${width}%; background:${asset.changePct >= 0 ? 'linear-gradient(90deg, rgba(41,201,132,.34), rgba(41,201,132,.96))' : 'linear-gradient(90deg, rgba(255,106,132,.34), rgba(255,106,132,.96))'}"></div>
+            </div>
+            <div class="sub">${SECTORS[asset.sector].name}</div>
+          </div>
+        `;
+      }).join('');
+      $$('#symbolBars .bar-card').forEach(el => el.addEventListener('click', () => {
+        state.selected = el.dataset.symbol;
+        renderAll();
+      }));
+    }
+
+    function renderBookTable() {
+      const tab = state.selectedBookTab;
+      const wrap = $('#bookTableWrap');
+      if (tab === 'openPositions') {
+        const rows = Object.values(state.positions);
+        wrap.innerHTML = `
+          <table>
+            <thead><tr><th>Symbol</th><th>Side</th><th>Qty</th><th>Avg</th><th>Mark</th><th>Lev</th><th>Margin</th><th>U-P/L</th><th>Actions</th></tr></thead>
+            <tbody>
+              ${rows.length ? rows.map(pos => {
+                const asset = state.assets[pos.symbol];
+                const upnl = unrealizedPnl(pos);
+                return `<tr>
+                  <td>${pos.symbol}</td>
+                  <td><span class="badge ${pos.qty > 0 ? 'blue' : 'warn'}">${pos.qty > 0 ? 'LONG' : 'SHORT'}</span></td>
+                  <td class="mono">${Math.abs(pos.qty)}</td>
+                  <td class="mono">${pos.avg.toFixed(2)}</td>
+                  <td class="mono">${asset.price.toFixed(2)}</td>
+                  <td class="mono">${pos.leverage.toFixed(2)}x</td>
+                  <td class="mono">${fmtMoney(pos.margin, 0)}</td>
+                  <td class="mono ${upnl >= 0 ? 'good' : 'bad'}">${fmtMoney(upnl)}</td>
+                  <td><div class="row-actions"><button class="mini-btn" data-close-half="${pos.symbol}">50%</button><button class="mini-btn red" data-close-all="${pos.symbol}">전량</button></div></td>
+                </tr>`;
+              }).join('') : `<tr><td colspan="9" class="muted">현재 오픈 포지션이 없습니다.</td></tr>`}
+            </tbody>
+          </table>
+        `;
+      }
+      if (tab === 'openOrders') {
+        wrap.innerHTML = `
+          <table>
+            <thead><tr><th>Time</th><th>Symbol</th><th>Side</th><th>Qty</th><th>Type</th><th>Limit</th><th>Lev</th><th>Actions</th></tr></thead>
+            <tbody>
+              ${state.openOrders.length ? state.openOrders.map(o => `
+                <tr>
+                  <td>${o.submittedAt}</td>
+                  <td>${o.symbol}</td>
+                  <td><span class="badge ${o.side === 'long' ? 'blue' : 'warn'}">${o.side.toUpperCase()}</span></td>
+                  <td class="mono">${o.qty}</td>
+                  <td>${o.type.toUpperCase()}</td>
+                  <td class="mono">${o.limitPrice.toFixed(2)}</td>
+                  <td class="mono">${o.leverage}x</td>
+                  <td><button class="mini-btn red" data-cancel-order="${o.id}">취소</button></td>
+                </tr>
+              `).join('') : `<tr><td colspan="8" class="muted">현재 오픈 오더가 없습니다.</td></tr>`}
+            </tbody>
+          </table>
+        `;
+      }
+      if (tab === 'positionHistory') {
+        wrap.innerHTML = `
+          <table>
+            <thead><tr><th>Closed At</th><th>Symbol</th><th>Side</th><th>Qty</th><th>Entry</th><th>Exit</th><th>Lev</th><th>Realized</th></tr></thead>
+            <tbody>
+              ${state.positionHistory.length ? state.positionHistory.map(h => `
+                <tr>
+                  <td>${h.closedAt}</td>
+                  <td>${h.symbol}</td>
+                  <td><span class="badge ${h.side === 'LONG' ? 'blue' : 'warn'}">${h.side}</span></td>
+                  <td class="mono">${h.qty}</td>
+                  <td class="mono">${h.entryAvg.toFixed(2)}</td>
+                  <td class="mono">${h.exitPrice.toFixed(2)}</td>
+                  <td class="mono">${h.leverage.toFixed(2)}x</td>
+                  <td class="mono ${h.realized >= 0 ? 'good' : 'bad'}">${fmtMoney(h.realized)}</td>
+                </tr>
+              `).join('') : `<tr><td colspan="8" class="muted">포지션 히스토리가 없습니다.</td></tr>`}
+            </tbody>
+          </table>
+        `;
+      }
+      if (tab === 'orderHistory') {
+        wrap.innerHTML = `
+          <table>
+            <thead><tr><th>Time</th><th>Symbol</th><th>Side</th><th>Qty</th><th>Type</th><th>Lev</th><th>Status</th><th>Fill</th><th>Note</th></tr></thead>
+            <tbody>
+              ${state.orderHistory.length ? state.orderHistory.map(h => `
+                <tr>
+                  <td>${h.timestamp}</td>
+                  <td>${h.symbol}</td>
+                  <td><span class="badge ${h.side === 'LONG' ? 'blue' : 'warn'}">${h.side}</span></td>
+                  <td class="mono">${h.qty}</td>
+                  <td>${h.type}</td>
+                  <td class="mono">${h.leverage}x</td>
+                  <td>${h.status}</td>
+                  <td class="mono">${h.fillPrice ? h.fillPrice.toFixed(2) : '—'}</td>
+                  <td class="muted">${h.note || ''}</td>
+                </tr>
+              `).join('') : `<tr><td colspan="9" class="muted">오더 히스토리가 없습니다.</td></tr>`}
+            </tbody>
+          </table>
+        `;
+      }
+    }
+
+    function newsSector(item) {
+      if (item.scope === 'Macro' || item.scope === 'System') return item.scope;
+      if (SECTORS[item.scope]) return item.scope;
+      if (item.symbol && state.assets[item.symbol]) return state.assets[item.symbol].sector;
+      if (state.assets[item.scope]) return state.assets[item.scope].sector;
+      return 'System';
+    }
+
+    function renderNewsTab() {
+      const avgs = sectorAverages();
+      const nextCatalyst = Math.max(0, state.eventSchedule);
+      $('#newsLeftCol').innerHTML = `
+        <div class="card">
+          <div class="panel-title" style="margin-bottom:8px;">${state.scenario.title}</div>
+          <div class="sub">${state.scenario.desc}</div>
+          <div style="height:12px"></div>
+          <div class="pill-row">
+            <span class="badge blue">${state.scenario.tag}</span>
+            <span class="badge neutral">다음 촉매 ${nextCatalyst}분</span>
+            <span class="badge ${marginHealth() > 1.2 ? 'good' : 'bad'}">Health ${marginHealth() === 999 ? '999' : marginHealth().toFixed(2)}</span>
+          </div>
+        </div>
+        <div class="card">
+          <div class="panel-title" style="margin-bottom:10px;">섹터 강도</div>
+          ${Object.keys(SECTORS).map(k => `
+            <div style="display:flex; justify-content:space-between; gap:10px; padding:8px 0; border-bottom:1px solid rgba(112,137,190,.08);">
+              <span>${SECTORS[k].name}</span>
+              <span class="mono ${avgs[k] >= 0 ? 'good' : 'bad'}">${fmtPct(avgs[k])}</span>
+            </div>
+          `).join('')}
+        </div>
+        <div class="card">
+          <div class="panel-title" style="margin-bottom:10px;">레버리지 리스크</div>
+          <div class="preview-grid">
+            <div class="preview-item"><div class="k">Gross Notional</div><div class="v mono">${fmtMoney(grossNotional(), 0)}</div></div>
+            <div class="preview-item"><div class="k">Maintenance</div><div class="v mono">${fmtMoney(maintenanceRequirement(), 0)}</div></div>
+            <div class="preview-item"><div class="k">Open Orders</div><div class="v mono">${state.openOrders.length}</div></div>
+            <div class="preview-item"><div class="k">Positions</div><div class="v mono">${Object.keys(state.positions).length}</div></div>
+          </div>
+        </div>
+      `;
+
+      const groups = {
+        Macro: [], System: [], AI: [], SEMI: [], BIO: [], ENR: [], CONS: [], MEME: []
+      };
+      state.news.forEach(item => {
+        const sector = newsSector(item);
+        if (!groups[sector]) groups[sector] = [];
+        groups[sector].push(item);
+      });
+      const orderedKeys = ['Macro', 'System', 'AI', 'SEMI', 'BIO', 'ENR', 'CONS', 'MEME'];
+      $('#newsGroups').innerHTML = orderedKeys.map(key => {
+        const label = key === 'Macro' || key === 'System' ? key : SECTORS[key].name;
+        const items = (groups[key] || []).slice(0, 8);
+        return `
+          <article class="panel news-group">
+            <div class="panel-header">
+              <div>
+                <div class="panel-title">${label}</div>
+                <div class="panel-sub">${items.length}개 항목</div>
+              </div>
+            </div>
+            <div class="news-stack">
+              ${items.length ? items.map(n => `
+                <div class="news-item">
+                  <div class="news-item-head">
+                    <span class="badge ${n.severity}">${n.scope}</span>
+                    <span class="muted">${n.time}</span>
+                  </div>
+                  <div style="font-weight:900; margin-bottom:6px;">${n.headline}</div>
+                  <div class="muted">${n.body}</div>
+                </div>
+              `).join('') : `<div class="muted" style="padding:14px;">아직 이 섹터 뉴스가 없습니다.</div>`}
+            </div>
+          </article>
+        `;
+      }).join('');
+    }
+
+    function renderCommunityTab() {
+      $('#communityX').innerHTML = `
+        <div class="placeholder">
+          <div class="panel-title" style="margin-bottom:8px;">X 스트림 슬롯</div>
+          <div class="muted">실시간 트렌드 태그, 종목 멘션 증가율, 급변 커뮤니티 반응을 연결할 예정입니다.</div>
+        </div>
+        <div class="placeholder">
+          <div class="panel-title" style="margin-bottom:8px;">예정 항목</div>
+          <div class="pill-row">
+            <span class="badge blue">실시간 멘션 속도</span>
+            <span class="badge warn">밈 급등 경보</span>
+            <span class="badge neutral">인플루언서 영향도</span>
+          </div>
+        </div>
+      `;
+      $('#communityReddit').innerHTML = `
+        <div class="placeholder">
+          <div class="panel-title" style="margin-bottom:8px;">Reddit 감정 흐름 슬롯</div>
+          <div class="muted">WallStreetBets류 밈 강도, 숏 스퀴즈 후보 랭킹, 댓글 모멘텀 지표가 들어갈 자리입니다.</div>
+        </div>
+        <div class="placeholder">
+          <div class="panel-title" style="margin-bottom:8px;">예정 항목</div>
+          <div class="pill-row">
+            <span class="badge bad">숏 관심도</span>
+            <span class="badge violet">밈 확산률</span>
+            <span class="badge good">리테일 유입</span>
+          </div>
+        </div>
+      `;
+      $('#communityTodo').innerHTML = `
+        <div class="todo-item"><div class="todo-check"></div><div><strong>X / Reddit 통합 감정 점수</strong><div class="muted">뉴스 탭과 연결해 소셜 촉매를 따로 표기.</div></div></div>
+        <div class="todo-item"><div class="todo-check"></div><div><strong>소셜 기반 이벤트 생성기</strong><div class="muted">밈 유입이 숏 스퀴즈 이벤트 확률에 영향을 주도록 확장.</div></div></div>
+        <div class="todo-item"><div class="todo-check"></div><div><strong>커뮤니티별 신뢰도 가중치</strong><div class="muted">노이즈와 실제 영향력을 구분하는 레이어 추가.</div></div></div>
+      `;
+    }
+
+    function renderAll() {
+      renderTopbar();
+      renderWatchlist();
+      renderChartHeader();
+      renderOrderPanel();
+      renderSectorStrip();
+      renderSymbolBars();
+      renderBookTable();
+      renderNewsTab();
+      renderCommunityTab();
+      drawChart();
+      state.needsRender = false;
+    }
+
+    function setSpeedButtons() {
+      $$('.speed-btn').forEach(btn => btn.classList.toggle('active', Number(btn.dataset.speed) === state.speed));
+    }
+
+    function syncOrderFormToInputs() {
+      $('#orderQtyInput').value = state.orderForm.qty;
+      $('#orderLeverageSelect').value = String(state.orderForm.leverage);
+      $('#limitPriceInput').value = state.assets[state.selected].price.toFixed(2);
+    }
+
+    function activateTab(target) {
+      state.selectedTab = target;
+      $$('.tab-btn').forEach(btn => btn.classList.toggle('active', btn.dataset.tabTarget === target));
+      $$('.tab-panel').forEach(panel => panel.classList.toggle('active', panel.id === `tab-${target}`));
+      renderAll();
+    }
+
+    function bindEvents() {
+      document.addEventListener('click', (e) => {
+        const tabBtn = e.target.closest('[data-tab-target]');
+        if (tabBtn) {
+          activateTab(tabBtn.dataset.tabTarget);
+          return;
+        }
+        const speedBtn = e.target.closest('[data-speed]');
+        if (speedBtn) {
+          state.paused = false;
+          state.speed = Number(speedBtn.dataset.speed);
+          setSpeedButtons();
+          renderTopbar();
+          return;
+        }
+        const tfBtn = e.target.closest('[data-timeframe]');
+        if (tfBtn) {
+          state.timeframe = Number(tfBtn.dataset.timeframe);
+          $$('#timeframeWrap .mini-btn').forEach(btn => btn.classList.toggle('active', Number(btn.dataset.timeframe) === state.timeframe));
+          drawChart();
+          return;
+        }
+        const bookBtn = e.target.closest('[data-book-tab]');
+        if (bookBtn) {
+          state.selectedBookTab = bookBtn.dataset.bookTab;
+          $$('#bookTabs .book-tab').forEach(btn => btn.classList.toggle('active', btn.dataset.bookTab === state.selectedBookTab));
+          renderBookTable();
+          return;
+        }
+        const orderSideBtn = e.target.closest('[data-order-side]');
+        if (orderSideBtn) {
+          state.orderForm.side = orderSideBtn.dataset.orderSide;
+          renderOrderPanel();
+          return;
+        }
+        const orderTypeBtn = e.target.closest('[data-order-type]');
+        if (orderTypeBtn) {
+          state.orderForm.type = orderTypeBtn.dataset.orderType;
+          renderOrderPanel();
+          return;
+        }
+        const closeHalf = e.target.closest('[data-close-half]');
+        if (closeHalf) { closePosition(closeHalf.dataset.closeHalf, 0.5); return; }
+        const closeAll = e.target.closest('[data-close-all]');
+        if (closeAll) { closePosition(closeAll.dataset.closeAll, 1); return; }
+        const cancel = e.target.closest('[data-cancel-order]');
+        if (cancel) { cancelOrder(cancel.dataset.cancelOrder); return; }
+      });
+
+      $('#newScenarioBtn').addEventListener('click', () => resetState());
+      $('#pauseBtn').addEventListener('click', () => { state.paused = !state.paused; renderTopbar(); });
+      $('#jumpBtn').addEventListener('click', () => jumpToNextCatalyst());
+      $('#submitOrderBtn').addEventListener('click', () => submitOrder());
+      $('#clearOrderBtn').addEventListener('click', () => {
+        state.orderForm = { side: 'long', type: 'market', qty: 25, leverage: 2, limitPrice: state.assets[state.selected].price };
+        syncOrderFormToInputs();
+        renderOrderPanel();
+      });
+      $('#closeHalfBtn').addEventListener('click', () => closePosition(state.selected, 0.5));
+      $('#closeAllSelectedBtn').addEventListener('click', () => closePosition(state.selected, 1));
+      $('#pinWatchlistBtn').addEventListener('click', () => {
+        state.watchlistPinned = !state.watchlistPinned;
+        $('#watchlistPanel').classList.toggle('expanded', state.watchlistPinned);
+        $('#pinWatchlistBtn').classList.toggle('active', state.watchlistPinned);
+      });
+      $('#watchlistPanel').addEventListener('mouseenter', () => { if (!state.watchlistPinned) $('#watchlistPanel').classList.add('expanded'); });
+      $('#watchlistPanel').addEventListener('mouseleave', () => { if (!state.watchlistPinned) $('#watchlistPanel').classList.remove('expanded'); });
+
+      $('#orderQtyInput').addEventListener('input', (e) => {
+        state.orderForm.qty = Math.max(1, Math.floor(Number(e.target.value || 1)));
+        renderOrderPanel();
+      });
+      $('#orderLeverageSelect').addEventListener('change', (e) => {
+        state.orderForm.leverage = clamp(Number(e.target.value || 1), 1, 5);
+        renderOrderPanel();
+      });
+      $('#limitPriceInput').addEventListener('input', (e) => {
+        state.orderForm.limitPrice = Number(e.target.value || 0);
+      });
+
+      const canvas = $('#chartCanvas');
+      canvas.addEventListener('mousemove', (e) => {
+        const rect = canvas.getBoundingClientRect();
+        state.hover.x = e.clientX - rect.left;
+        state.hover.y = e.clientY - rect.top;
+        drawChart();
+      });
+      canvas.addEventListener('mouseleave', () => {
+        state.hover.x = null;
+        state.hover.y = null;
+        drawChart();
+      });
+
+      window.addEventListener('resize', () => drawChart());
+    }
+
+    function loop(ts) {
+      if (!state.lastFrame) state.lastFrame = ts;
+      const dt = Math.min(0.25, (ts - state.lastFrame) / 1000);
+      state.lastFrame = ts;
+      if (!state.paused) {
+        state.accumulator += dt * state.baseMinutesPerSecond * state.speed;
+        while (state.accumulator >= 1) {
+          stepMinute();
+          state.accumulator -= 1;
+        }
+      }
+      if (state.needsRender && state.selectedTab === 'invest') renderAll();
+      else if (state.needsRender) {
+        renderTopbar();
+        renderNewsTab();
+        renderCommunityTab();
+        state.needsRender = false;
+      }
+      requestAnimationFrame(loop);
+    }
+
+    bindEvents();
+    resetState();
+    activateTab('invest');
+    requestAnimationFrame(loop);
+  </script>
+</body>
+</html>
