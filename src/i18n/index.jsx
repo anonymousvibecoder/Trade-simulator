@@ -1,8 +1,9 @@
 import { createContext, useCallback, useContext, useMemo, useState } from "react";
 import { enPack } from "./packs/en";
+import { koPack } from "./packs/ko";
 
 const STORAGE_KEY = "market-pulse-language";
-const packs = { en: enPack };
+const packs = { en: enPack, ko: koPack };
 const fallbackLanguage = "en";
 
 function resolvePath(target, path) {
@@ -44,23 +45,28 @@ export function I18nProvider({ children }) {
   }, []);
 
   const dictionary = packs[language] || packs[fallbackLanguage];
+  const fallbackDictionary = packs[fallbackLanguage];
 
   const t = useCallback(
     (key, vars = {}, fallback = key) => {
       const value = resolvePath(dictionary, key);
+      const fallbackValue = resolvePath(fallbackDictionary, key);
       if (typeof value === "string") return interpolate(value, vars);
+      if (typeof fallbackValue === "string") return interpolate(fallbackValue, vars);
       if (value == null) return fallback;
       return value;
     },
-    [dictionary],
+    [dictionary, fallbackDictionary],
   );
 
   const get = useCallback(
     (key, fallback = undefined) => {
       const value = resolvePath(dictionary, key);
-      return value == null ? fallback : value;
+      if (value != null) return value;
+      const fallbackValue = resolvePath(fallbackDictionary, key);
+      return fallbackValue == null ? fallback : fallbackValue;
     },
-    [dictionary],
+    [dictionary, fallbackDictionary],
   );
 
   const contextValue = useMemo(

@@ -3,6 +3,8 @@ import { useI18n } from "../../i18n";
 import { SECTORS } from "../../simulator/constants";
 import { drawTradingChart } from "../../simulator/chart";
 import { fmtMoney, fmtPct } from "../../simulator/utils";
+import { StockNewsPanel } from "./StockNewsPanel";
+import { StockInfoPanel } from "./StockInfoPanel";
 
 const TIMEFRAME_OPTIONS = [
   { label: "1m", value: 1 },
@@ -72,8 +74,6 @@ export function ChartPanel({ engine, state, version }) {
   const asset = state.assets[state.selected];
   const position = engine.getCurrentPosition(asset.symbol);
   const micro = asset.micro;
-  const macroFactors = state.macroFlow?.factors || {};
-  const macroAxes = state.macroFlow?.axes || {};
   const candles = useMemo(
     () => engine.aggregateCandles(asset, state.timeframe),
     [engine, asset, state.timeframe, version],
@@ -448,52 +448,9 @@ export function ChartPanel({ engine, state, version }) {
             </div>
           </div>
         ) : activeWorkspace === "profile" ? (
-          <div className="chart-workspace-insights">
-            <div className="workspace-insight-hero">
-              <div className="workspace-insight-headline">
-                <span className="badge blue">Micro Regime</span>
-                <strong>{micro?.regime || "Initializing"}</strong>
-                <span className="workspace-insight-caption">
-                  Macro pressure is flowing into this company through demand, margin, and funding channels.
-                </span>
-              </div>
-              <div className="workspace-metric-grid">
-                <MetricCard label="Revenue" value={fmtSignedNumber(micro?.signals?.revenue)} tone={toneForSignal(micro?.signals?.revenue)} />
-                <MetricCard label="Margin" value={fmtSignedNumber(micro?.signals?.margin)} tone={toneForSignal(micro?.signals?.margin)} />
-                <MetricCard label="Cash Flow" value={fmtSignedNumber(micro?.signals?.cashFlow)} tone={toneForSignal(micro?.signals?.cashFlow)} />
-                <MetricCard label="Balance Sheet" value={fmtSignedNumber(micro?.signals?.balanceSheet)} tone={toneForSignal(micro?.signals?.balanceSheet)} />
-                <MetricCard label="Earnings" value={fmtSignedNumber(micro?.signals?.earnings)} tone={toneForSignal(micro?.signals?.earnings)} />
-              </div>
-            </div>
-
-            <div className="workspace-insight-panels">
-              <section className="workspace-insight-panel">
-                <div className="workspace-insight-title">Operating Channels</div>
-                <div className="workspace-component-list">
-                  <ComponentRow label="Demand" value={micro?.components?.demand} />
-                  <ComponentRow label="Pricing Power" value={micro?.components?.pricingPower} />
-                  <ComponentRow label="Cost Pressure" value={micro?.components?.costPressure} invert />
-                  <ComponentRow label="Funding Stress" value={micro?.components?.fundingStress} invert />
-                  <ComponentRow label="Inventory Stress" value={micro?.components?.inventoryStress} invert />
-                  <ComponentRow label="Capex Appetite" value={micro?.components?.capexAppetite} />
-                  <ComponentRow label="Labor Pressure" value={micro?.components?.laborPressure} invert />
-                </div>
-              </section>
-              <section className="workspace-insight-panel">
-                <div className="workspace-insight-title">Macro Transmission</div>
-                <div className="workspace-macro-grid">
-                  <MetricCard label="D" value={fmtSignedNumber(macroFactors.D)} tone={toneForSignal(macroFactors.D)} compact />
-                  <MetricCard label="Q" value={fmtSignedNumber(macroFactors.Q)} tone={toneForSignal(macroFactors.Q)} compact />
-                  <MetricCard label="M" value={fmtSignedNumber(macroFactors.M)} tone={toneForSignal(-macroFactors.M)} compact />
-                  <MetricCard label="F" value={fmtSignedNumber(macroFactors.F)} tone={toneForSignal(-macroFactors.F)} compact />
-                  <MetricCard label="X" value={fmtSignedNumber(macroFactors.X)} tone={toneForSignal(-macroFactors.X)} compact />
-                  <MetricCard label="E" value={fmtSignedNumber(macroFactors.E)} tone={toneForSignal(macroFactors.E)} compact />
-                  <MetricCard label="Real" value={fmtSignedNumber(macroAxes.realEconomy)} tone={toneForSignal(macroAxes.realEconomy)} compact />
-                  <MetricCard label="Infl" value={fmtSignedNumber(macroAxes.inflation)} tone={toneForSignal(-Math.abs(macroAxes.inflation || 0))} compact />
-                </div>
-              </section>
-            </div>
-          </div>
+          <StockInfoPanel asset={asset} calendarDate={state.calendarDate} />
+        ) : activeWorkspace === "news" ? (
+          <StockNewsPanel engine={engine} state={state} asset={asset} />
         ) : activeWorkspace === "trading" ? (
           <div className="chart-workspace-insights">
             <div className="workspace-insight-panels single">

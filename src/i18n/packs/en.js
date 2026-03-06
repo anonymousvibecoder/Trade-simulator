@@ -1,3 +1,5 @@
+import { stockProfilesEn } from "./stockProfiles.en";
+
 export const enPack = {
   chartPanel: {
     tabs: {
@@ -8,13 +10,12 @@ export const enPack = {
     },
     subtitle: {
       chart: "Trading chart - Wheel to zoom",
-      profile: "Macro transmission and company operating state",
-      news: "TODO placeholder for news and disclosure feed",
+      profile: "Company overview, financials, earnings, and dividends",
+      news: "Auto-selected latest news for the current symbol",
       trading: "Execution surface shaped by company micro state",
     },
     placeholder: {
-      notWired:
-        "News and disclosure feed is still a TODO surface.",
+      notWired: "News and disclosure feed is still a TODO surface.",
       todo: {
         profile: [
           "TODO: stock identity, valuation, and N-year simulation summary",
@@ -83,4 +84,167 @@ export const enPack = {
       vwapNote: "Continuous VWAP is applied across session boundaries.",
     },
   },
+  stockInfo: {
+    navTitle: "Stock Info",
+    sections: {
+      overview: "Overview",
+      financials: "Financials",
+      earnings: "Earnings",
+      dividends: "Dividends",
+    },
+    hero: {
+      source: "Source: {{value}}",
+      website: "Website",
+    },
+    overview: {
+      title: "Company Overview",
+      meta: "Key takeaways",
+      mixTitle: "Revenue Mix",
+      mixMeta: "As of {{date}}",
+      mixCenter: "Revenue Mix",
+    },
+    financials: {
+      title: "Investment Metrics",
+      valuation: "Valuation",
+      profitability: "Profitability",
+      dividends: "Dividends",
+      last12Months: "Last 12 Months",
+    },
+    earnings: {
+      title: "Earnings Snapshot",
+      meta: "Trailing four-quarter view",
+      incomeStatement: "Financial Statements · Income",
+      balanceStatement: "Financial Statements · Balance Sheet",
+    },
+    dividends: {
+      title: "Dividends",
+      meta: "Approximate modeled cash dividends",
+      last12Months: "Dividends over the last 12 months",
+      payoutRatio: "Payout Ratio",
+      annualTrend: "Annual Dividend Trend",
+      recentHistory: "Recent Dividend History",
+      none: "No dividend",
+      perYear: "{{count}} / year",
+      detailedFrequency: "{{count}} payments ({{months}})",
+    },
+    facts: {
+      marketCap: "Market Cap",
+      sharesOutstanding: "Shares Outstanding",
+      companyName: "Legal Name",
+      ceo: "Chief Executive",
+      listedDate: "Listing Date",
+      currentPrice: "Last Price",
+      estimatedFromQuarter: "Estimated from {{period}}",
+      foundedYear: "Founded {{year}}",
+      listedAs: "Listed as {{symbol}}",
+      asOf: "As of {{date}}",
+    },
+    metrics: {
+      per: "PER",
+      psr: "PSR",
+      pbr: "PBR",
+      eps: "EPS",
+      bps: "BPS",
+      roe: "ROE",
+      frequency: "Payments",
+      dividendPerShare: "Dividend / Share",
+      yield: "Yield",
+      revenueGrowth: "Revenue Growth",
+      operatingMargin: "Operating Margin",
+      netMargin: "Net Margin",
+      fcfMargin: "FCF Margin",
+      debtToEquity: "Debt / Equity",
+      sectorBeta: "Sector Beta",
+      revenueGrowthCaption: "Versus the prior four quarters",
+      trailingFourQuarters: "Trailing four quarters",
+      cashGeneration: "Cash generation",
+      baseAssetSetting: "Base asset setting",
+      ttmRevenue: "TTM Revenue",
+      ttmOperatingIncome: "TTM Operating Income",
+      ttmNetIncome: "TTM Net Income",
+      ttmFreeCashFlow: "TTM Free Cash Flow",
+      recentQuarterEps: "Latest Quarter EPS",
+      recentQuarterRoe: "Latest Quarter ROE",
+      profitabilityLeverage: "Profitability leverage",
+      cashBasis: "Cash basis",
+    },
+    statements: {
+      item: "Item",
+      revenue: "Revenue",
+      operatingIncome: "Operating Income",
+      netIncome: "Net Income",
+      assets: "Assets",
+      liabilities: "Liabilities",
+      equity: "Equity",
+      freeCashFlow: "Free Cash Flow",
+      year: "Year",
+      payments: "Payments",
+      period: "Period",
+      payment: "Dividend / Share",
+      yieldOnPrice: "Yield on Current Price",
+      indicatedYield: "Indicated Yield",
+    },
+    units: {
+      sharesMillion: "{{value}}M shares",
+      multiple: "{{value}}x",
+      asOfDate: "As of {{date}}",
+    },
+    months: {
+      q1: "Mar",
+      q2: "Jun",
+      q3: "Sep",
+      q4: "Dec",
+    },
+  },
+  stockNews: {
+    tabs: {
+      news: "News",
+      filings: "Disclosures",
+    },
+    aria: {
+      sections: "Stock news sections",
+    },
+    header: {
+      title: "{{name}} News",
+      subcopy:
+        "This feed automatically extracts only the latest items directly connected to the current symbol from the live news stream.",
+      latest: "Latest",
+    },
+    empty:
+      "There are not enough directly related headlines for this symbol yet.",
+    featured: {
+      waiting: "Waiting",
+      noneTitle: "No related headlines yet",
+      noneCaption:
+        "Highlights will appear here once symbol-linked news items are generated.",
+    },
+    todo: {
+      title: "Disclosures",
+      copy:
+        "Disclosure modeling still needs a separate system. For now it remains a TODO surface, and the next step is to add filing types and company-event rules.",
+      items: [
+        "Split filing types such as earnings, equity issuance, buybacks, and M&A",
+        "Model the strength and duration of price impact by disclosure type",
+        "Build a separate timeline UI for news versus disclosures",
+      ],
+    },
+    relation: {
+      direct: "Direct",
+      macro: "Macro",
+      sector: "Sector",
+      market: "Market",
+    },
+    source: {
+      symbolDesk: "{{name}} Desk",
+      macroDesk: "Macro Desk",
+      sectorWatch: "{{sector}} Watch",
+      marketDesk: "Market Desk",
+    },
+    age: {
+      minutesAgo: "{{value}}m ago",
+      hoursAgo: "{{value}}h ago",
+      daysAgo: "{{value}}d ago",
+    },
+  },
+  stockProfiles: stockProfilesEn,
 };
