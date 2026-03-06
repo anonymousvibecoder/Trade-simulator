@@ -15,22 +15,8 @@ export function useTradingEngine() {
     };
     rafId = requestAnimationFrame(loop);
 
-    if (typeof window !== "undefined") {
-      window.__tradeSimEngine = engine;
-      window.__tradeSimDebug = {
-        dumpChartSequence: (options) => engine.debugDumpChartSequence(options),
-      };
-      console.info(
-        "[trade-sim] debug helper ready: window.__tradeSimDebug.dumpChartSequence()",
-      );
-    }
-
     return () => {
       cancelAnimationFrame(rafId);
-      if (typeof window !== "undefined") {
-        if (window.__tradeSimEngine === engine) delete window.__tradeSimEngine;
-        if (window.__tradeSimDebug?.dumpChartSequence) delete window.__tradeSimDebug;
-      }
       engine.destroy();
     };
   }, [engine]);

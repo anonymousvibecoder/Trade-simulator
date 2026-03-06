@@ -37,6 +37,11 @@ const DEFAULT_START_DATE = MARKET_FLOW_CONFIG.startDate || "2026-01-05";
 const MAX_CANDLE_STORE = 12000;
 const BOOTSTRAP_CACHE_KEY = "trade-simulator-bootstrap-v4";
 const BOOTSTRAP_CACHE_VERSION = 6;
+const GAME_SAVE_KEY = "trade-simulator-save-v1";
+const GAME_SAVE_META_KEY = "trade-simulator-save-meta-v1";
+const GAME_SAVE_VERSION = 1;
+const PREFERENCES_KEY = "trade-simulator-preferences-v1";
+const PREFERENCES_VERSION = 1;
 
 function parseIsoDate(isoDate) {
   return new Date(`${isoDate}T00:00:00`);
@@ -132,21 +137,92 @@ function previousOpenDate(fromDate, holidaySet) {
   return fromDate;
 }
 
-function nextOpenDate(fromDate, holidaySet) {
-  let cursor = addCalendarDays(fromDate, 1);
-  for (let i = 0; i < 370; i += 1) {
-    if (!isMarketClosedDate(cursor, holidaySet)) return cursor;
-    cursor = addCalendarDays(cursor, 1);
-  }
-  return fromDate;
-}
-
 function canUseStorage() {
   return typeof window !== "undefined" && !!window.localStorage;
 }
 
 function roundPrice(value, digits = 6) {
   return Number(Number(value || 0).toFixed(digits));
+}
+
+function normalizeSavedGameMeta(meta) {
+  if (!meta || meta.version !== GAME_SAVE_VERSION) return null;
+  if (typeof meta.savedAt !== "string" || typeof meta.calendarDate !== "string") return null;
+  return {
+    version: GAME_SAVE_VERSION,
+    savedAt: meta.savedAt,
+    calendarDate: meta.calendarDate,
+    day: Math.max(1, Math.floor(Number(meta.day || 1))),
+    marketMinute: Math.max(0, Math.floor(Number(meta.marketMinute || 0))),
+  };
+}
+
+function serializeLiveCandle(candle) {
+  if (!candle) return null;
+  return [
+    Number(candle.t || 0),
+    Number(candle.day || 0),
+    candle.date || "",
+    Number(candle.minute || 0),
+    roundPrice(candle.open),
+    roundPrice(candle.high),
+    roundPrice(candle.low),
+    roundPrice(candle.close),
+    Math.max(0, Math.floor(Number(candle.volume || 0))),
+    roundPrice(candle.vwap),
+  ];
+}
+
+function deserializeLiveCandle(row) {
+  if (!Array.isArray(row) || row.length < 10) return null;
+  return {
+    t: Number(row[0] || 0),
+    day: Number(row[1] || 0),
+    date: row[2] || "",
+    minute: Number(row[3] || 0),
+    open: Number(row[4] || 0),
+    high: Number(row[5] || 0),
+    low: Number(row[6] || 0),
+    close: Number(row[7] || 0),
+    volume: Math.max(0, Math.floor(Number(row[8] || 0))),
+    vwap: Number(row[9] || 0),
+    event: null,
+  };
+}
+
+function serializeHistoricalExtensionCandle(candle) {
+  if (!candle) return null;
+  return [
+    Number(candle.t || 0),
+    Number(candle.day || 0),
+    candle.date || "",
+    Number(candle.minute || 0),
+    roundPrice(candle.open),
+    roundPrice(candle.high),
+    roundPrice(candle.low),
+    roundPrice(candle.close),
+    Math.max(0, Math.floor(Number(candle.volume || 0))),
+    roundPrice(candle.vwap),
+    Array.isArray(candle.session) ? deepClone(candle.session) : null,
+  ];
+}
+
+function deserializeHistoricalExtensionCandle(row) {
+  if (!Array.isArray(row) || row.length < 10) return null;
+  return {
+    t: Number(row[0] || 0),
+    day: Number(row[1] || 0),
+    date: row[2] || "",
+    minute: Number(row[3] || 0),
+    open: Number(row[4] || 0),
+    high: Number(row[5] || 0),
+    low: Number(row[6] || 0),
+    close: Number(row[7] || 0),
+    volume: Math.max(0, Math.floor(Number(row[8] || 0))),
+    vwap: Number(row[9] || 0),
+    event: null,
+    session: Array.isArray(row[10]) ? deepClone(row[10]) : null,
+  };
 }
 
 export class TradingEngine {
@@ -163,6 +239,7 @@ export class TradingEngine {
   }
 
   createInitialState() {
+    const preferences = this.loadStoredPreferences();
     return {
       boot: {
         active: true,
@@ -175,7 +252,7 @@ export class TradingEngine {
       assetList: [],
       speed: 1,
       paused: false,
-      autoSlow: true,
+      autoSlow: preferences.autoSlow ?? true,
       autoSlowRestore: null,
       autoSlowUntil: null,
       marketMinute: 0,
@@ -214,6 +291,7 @@ export class TradingEngine {
       eventSchedule: 0,
       macroFlow: null,
       sectorLeadership: null,
+      savedGameMeta: this.readSavedGameMeta(),
       needsRender: true,
       toasts: [],
     };
@@ -239,11 +317,15 @@ export class TradingEngine {
     }
   }
 
-  destroy() {
+  clearToastTimers() {
     for (const timer of this.toastTimers.values()) {
       clearTimeout(timer);
     }
     this.toastTimers.clear();
+  }
+
+  destroy() {
+    this.clearToastTimers();
     this.listeners.clear();
   }
 
@@ -267,7 +349,15 @@ export class TradingEngine {
 
   initialize = async (emit = true) => {
     if (this.bootPromise) return this.bootPromise;
-    this.bootPromise = this.resetState(emit).finally(() => {
+    this.bootPromise = (async () => {
+      const savedGame = this.readSavedGameSnapshot();
+      if (savedGame) {
+        const restored = await this.restoreSavedGameFromSnapshot(savedGame, emit);
+        if (restored) return;
+        this.clearSavedGame();
+      }
+      await this.resetState(emit);
+    })().finally(() => {
       this.bootPromise = null;
     });
     return this.bootPromise;
@@ -1137,6 +1227,422 @@ export class TradingEngine {
     }
   }
 
+  getGameSaveKey() {
+    return GAME_SAVE_KEY;
+  }
+
+  getGameSaveMetaKey() {
+    return GAME_SAVE_META_KEY;
+  }
+
+  getPreferencesKey() {
+    return PREFERENCES_KEY;
+  }
+
+  loadStoredPreferences() {
+    if (!canUseStorage()) return { version: PREFERENCES_VERSION, autoSlow: true };
+    try {
+      const raw = window.localStorage.getItem(this.getPreferencesKey());
+      if (!raw) return { version: PREFERENCES_VERSION, autoSlow: true };
+      const parsed = JSON.parse(raw);
+      if (parsed?.version !== PREFERENCES_VERSION) {
+        return { version: PREFERENCES_VERSION, autoSlow: true };
+      }
+      return {
+        version: PREFERENCES_VERSION,
+        autoSlow: parsed.autoSlow !== false,
+      };
+    } catch {
+      return { version: PREFERENCES_VERSION, autoSlow: true };
+    }
+  }
+
+  saveStoredPreferences(patch = {}) {
+    const next = {
+      ...this.loadStoredPreferences(),
+      ...patch,
+      version: PREFERENCES_VERSION,
+    };
+    if (!canUseStorage()) return next;
+    try {
+      window.localStorage.setItem(this.getPreferencesKey(), JSON.stringify(next));
+    } catch {
+      return next;
+    }
+    return next;
+  }
+
+  buildSavedGameMeta(snapshot) {
+    return normalizeSavedGameMeta({
+      version: GAME_SAVE_VERSION,
+      savedAt: snapshot?.savedAt || new Date().toISOString(),
+      calendarDate: snapshot?.state?.calendarDate || DEFAULT_START_DATE,
+      day: snapshot?.state?.day || 1,
+      marketMinute: snapshot?.state?.marketMinute || 0,
+    });
+  }
+
+  readSavedGameMeta() {
+    if (!canUseStorage()) return null;
+    try {
+      const raw = window.localStorage.getItem(this.getGameSaveMetaKey());
+      if (!raw) return null;
+      return normalizeSavedGameMeta(JSON.parse(raw));
+    } catch {
+      return null;
+    }
+  }
+
+  readSavedGameSnapshot() {
+    if (!canUseStorage()) return null;
+    try {
+      const raw = window.localStorage.getItem(this.getGameSaveKey());
+      if (!raw) return null;
+      const parsed = JSON.parse(raw);
+      if (parsed?.version !== GAME_SAVE_VERSION) return null;
+      if (!parsed?.state || !parsed?.assets) return null;
+      return parsed;
+    } catch {
+      return null;
+    }
+  }
+
+  writeSavedGameSnapshot(snapshot) {
+    if (!canUseStorage()) return null;
+    const meta = this.buildSavedGameMeta(snapshot);
+    if (!meta) return null;
+    try {
+      window.localStorage.setItem(this.getGameSaveKey(), JSON.stringify(snapshot));
+      window.localStorage.setItem(this.getGameSaveMetaKey(), JSON.stringify(meta));
+      return meta;
+    } catch {
+      return null;
+    }
+  }
+
+  clearSavedGame() {
+    if (canUseStorage()) {
+      try {
+        window.localStorage.removeItem(this.getGameSaveKey());
+        window.localStorage.removeItem(this.getGameSaveMetaKey());
+      } catch {
+        return false;
+      }
+    }
+    if (this.state) {
+      this.state.savedGameMeta = null;
+    }
+    return true;
+  }
+
+  serializeAssetState(asset) {
+    if (!asset) return null;
+    const bootstrapCount = Math.max(0, this.bootstrapHistoricalStore?.dates?.length || 0);
+    const historical = this.getHistoricalCandles(asset);
+    const historicalExtension = historical
+      .slice(bootstrapCount)
+      .map(serializeHistoricalExtensionCandle)
+      .filter(Boolean);
+    return {
+      price: roundPrice(asset.price),
+      prevClose: roundPrice(asset.prevClose),
+      open: roundPrice(asset.open),
+      high: roundPrice(asset.high),
+      low: roundPrice(asset.low),
+      close: roundPrice(asset.close),
+      anchor: roundPrice(asset.anchor),
+      historyMean: roundPrice(asset.historyMean),
+      trend: roundPrice(asset.trend, 8),
+      swingState: roundPrice(asset.swingState, 8),
+      effects: deepClone(asset.effects || []),
+      candles: (asset.candles || []).map(serializeLiveCandle).filter(Boolean),
+      sessionPlan: asset.sessionPlan
+        ? {
+            blueprint: deepClone(asset.sessionPlan.blueprint),
+            context: deepClone(asset.sessionPlan.context),
+          }
+        : null,
+      eventMarkers: deepClone(asset.eventMarkers || []),
+      dayPV: roundPrice(asset.dayPV),
+      dayVol: Math.max(0, Math.floor(Number(asset.dayVol || 0))),
+      lastVolume: Math.max(0, Math.floor(Number(asset.lastVolume || 0))),
+      spreadBps: roundPrice(asset.spreadBps, 6),
+      changePct: roundPrice(asset.changePct, 6),
+      liquidity: roundPrice(asset.liquidity, 6),
+      squeezeMeter: roundPrice(asset.squeezeMeter || 0, 4),
+      intradayNoise: roundPrice(asset.intradayNoise || 0, 8),
+      intradayDeviation: roundPrice(asset.intradayDeviation || 0, 8),
+      intradayPulse: roundPrice(asset.intradayPulse || 0, 8),
+      intradayPulseLife: Math.max(0, Math.floor(Number(asset.intradayPulseLife || 0))),
+      intradayPhase: roundPrice(asset.intradayPhase || 0, 8),
+      micro: deepClone(asset.micro || null),
+      historicalExtension,
+    };
+  }
+
+  createSaveSnapshot() {
+    return {
+      version: GAME_SAVE_VERSION,
+      savedAt: new Date().toISOString(),
+      state: {
+        selected: this.state.selected,
+        speed: Number(this.state.speed || 1),
+        paused: !!this.state.paused,
+        autoSlowRestore:
+          this.state.autoSlowRestore == null ? null : Number(this.state.autoSlowRestore),
+        autoSlowUntil: this.state.autoSlowUntil
+          ? {
+              day: Math.max(1, Math.floor(Number(this.state.autoSlowUntil.day || 1))),
+              minute: Math.max(0, Math.floor(Number(this.state.autoSlowUntil.minute || 0))),
+            }
+          : null,
+        marketMinute: Math.max(0, Math.floor(Number(this.state.marketMinute || 0))),
+        day: Math.max(1, Math.floor(Number(this.state.day || 1))),
+        calendarDate: this.state.calendarDate || DEFAULT_START_DATE,
+        marketHolidays: deepClone(this.state.marketHolidays || []),
+        timeframe: Math.max(1, Math.floor(Number(this.state.timeframe || 1))),
+        chartZoom: Number(this.state.chartZoom || 1),
+        chartScale: this.state.chartScale || "linear",
+        chartAutoScale: this.state.chartAutoScale !== false,
+        chartOffset: Math.max(0, Math.floor(Number(this.state.chartOffset || 0))),
+        chartFollowLatest: this.state.chartFollowLatest !== false,
+        chartAnchor: deepClone(this.state.chartAnchor || null),
+        chartFitToData: !!this.state.chartFitToData,
+        chartIndicators: deepClone(this.state.chartIndicators || {}),
+        news: deepClone(this.state.news || []),
+        reactionWindows: deepClone(this.state.reactionWindows || []),
+        cash: Number(this.state.cash || 0),
+        positions: deepClone(this.state.positions || {}),
+        openOrders: deepClone(this.state.openOrders || []),
+        orderHistory: deepClone(this.state.orderHistory || []),
+        positionHistory: deepClone(this.state.positionHistory || []),
+        selectedTab: this.state.selectedTab || "invest",
+        selectedBookTab: this.state.selectedBookTab || "openPositions",
+        orderForm: deepClone(this.state.orderForm || DEFAULT_ORDER_FORM),
+        watchlistPinned: !!this.state.watchlistPinned,
+        eventSchedule: Math.max(0, Math.floor(Number(this.state.eventSchedule || 0))),
+        macroFlow: deepClone(this.state.macroFlow || null),
+        sectorLeadership: deepClone(this.state.sectorLeadership || null),
+        scenario: deepClone(this.state.scenario || null),
+      },
+      assets: Object.fromEntries(
+        (this.state.assetList || []).map((symbol) => [
+          symbol,
+          this.serializeAssetState(this.state.assets[symbol]),
+        ]),
+      ),
+    };
+  }
+
+  applySavedAssetState(asset, savedAsset) {
+    if (!asset || !savedAsset) return;
+    asset.price = Number(savedAsset.price || asset.price);
+    asset.prevClose = Number(savedAsset.prevClose || asset.prevClose);
+    asset.open = Number(savedAsset.open || asset.open);
+    asset.high = Number(savedAsset.high || asset.high);
+    asset.low = Number(savedAsset.low || asset.low);
+    asset.close = Number(savedAsset.close || asset.close);
+    asset.anchor = Number(savedAsset.anchor || asset.anchor);
+    asset.historyMean = Number(savedAsset.historyMean || asset.historyMean);
+    asset.trend = Number(savedAsset.trend || 0);
+    asset.swingState = Number(savedAsset.swingState || 0);
+    asset.effects = deepClone(savedAsset.effects || []);
+    asset.candles = (savedAsset.candles || []).map(deserializeLiveCandle).filter(Boolean);
+    asset.eventMarkers = deepClone(savedAsset.eventMarkers || []);
+    asset.dayPV = Number(savedAsset.dayPV || 0);
+    asset.dayVol = Math.max(0, Math.floor(Number(savedAsset.dayVol || 0)));
+    asset.lastVolume = Math.max(0, Math.floor(Number(savedAsset.lastVolume || 0)));
+    asset.spreadBps = Number(savedAsset.spreadBps || asset.spreadBps || 2);
+    asset.changePct = Number(savedAsset.changePct || 0);
+    asset.liquidity = Number(savedAsset.liquidity || asset.liquidity || 60);
+    asset.squeezeMeter = Number(savedAsset.squeezeMeter || 0);
+    asset.intradayNoise = Number(savedAsset.intradayNoise || 0);
+    asset.intradayDeviation = Number(savedAsset.intradayDeviation || 0);
+    asset.intradayPulse = Number(savedAsset.intradayPulse || 0);
+    asset.intradayPulseLife = Math.max(0, Math.floor(Number(savedAsset.intradayPulseLife || 0)));
+    asset.intradayPhase = Number(savedAsset.intradayPhase || 0);
+    asset.micro = deepClone(savedAsset.micro || null);
+    this.applyMicroSurface(asset);
+
+    const extension = (savedAsset.historicalExtension || [])
+      .map(deserializeHistoricalExtensionCandle)
+      .filter(Boolean);
+    if (extension.length) {
+      asset.historicalCandles = this.getHistoricalCandles(asset).concat(extension);
+    } else {
+      asset.historicalCandles = null;
+    }
+
+    const savedPlan = savedAsset.sessionPlan || null;
+    if (savedPlan?.blueprint && savedPlan?.context) {
+      const blueprint = deepClone(savedPlan.blueprint);
+      const bars = decodeSessionBlueprint(blueprint, 1);
+      const summary = summarizeSessionBars(bars);
+      asset.sessionPlan = summary
+        ? {
+            blueprint,
+            bars,
+            summary,
+            context: deepClone(savedPlan.context),
+          }
+        : null;
+    } else {
+      asset.sessionPlan = null;
+    }
+
+    asset.canonicalIntradayCandles = null;
+    asset.canonicalIntradayHistoricalCount = 0;
+    asset.canonicalIntradayLiveCount = 0;
+    asset.runtimeMinuteCandles = null;
+    asset.runtimeMinuteSourceCount = 0;
+  }
+
+  applySavedGameSnapshot(snapshot) {
+    if (!snapshot?.state || !snapshot?.assets) return false;
+    const saved = snapshot.state;
+    const next = this.state;
+
+    next.selected = next.assets[saved.selected] ? saved.selected : next.selected;
+    next.speed = Math.max(1, Number(saved.speed || 1));
+    next.paused = !!saved.paused;
+    next.autoSlowRestore =
+      saved.autoSlowRestore == null ? null : Math.max(1, Number(saved.autoSlowRestore || 1));
+    next.autoSlowUntil = saved.autoSlowUntil
+      ? {
+          day: Math.max(1, Math.floor(Number(saved.autoSlowUntil.day || 1))),
+          minute: Math.max(0, Math.floor(Number(saved.autoSlowUntil.minute || 0))),
+        }
+      : null;
+    next.marketMinute = Math.max(0, Math.floor(Number(saved.marketMinute || 0)));
+    next.day = Math.max(1, Math.floor(Number(saved.day || 1)));
+    next.calendarDate = saved.calendarDate || next.calendarDate;
+    next.marketHolidays = deepClone(saved.marketHolidays || next.marketHolidays || []);
+    next.timeframe = Math.max(1, Math.floor(Number(saved.timeframe || 1)));
+    next.chartZoom = Number(saved.chartZoom || 1);
+    next.chartScale = saved.chartScale === "log" ? "log" : "linear";
+    next.chartAutoScale = saved.chartAutoScale !== false;
+    next.chartOffset = Math.max(0, Math.floor(Number(saved.chartOffset || 0)));
+    next.chartFollowLatest = saved.chartFollowLatest !== false;
+    next.chartAnchor = deepClone(saved.chartAnchor || null);
+    next.chartFitToData = !!saved.chartFitToData;
+    next.chartIndicators = deepClone(saved.chartIndicators || next.chartIndicators);
+    next.news = deepClone(saved.news || []);
+    next.reactionWindows = deepClone(saved.reactionWindows || []);
+    next.cash = Number(saved.cash || 0);
+    next.positions = deepClone(saved.positions || {});
+    next.openOrders = deepClone(saved.openOrders || []);
+    next.orderHistory = deepClone(saved.orderHistory || []);
+    next.positionHistory = deepClone(saved.positionHistory || []);
+    next.selectedTab = saved.selectedTab || "invest";
+    next.selectedBookTab = saved.selectedBookTab || "openPositions";
+    next.orderForm = deepClone(saved.orderForm || DEFAULT_ORDER_FORM);
+    next.watchlistPinned = !!saved.watchlistPinned;
+    next.eventSchedule = Math.max(0, Math.floor(Number(saved.eventSchedule || 0)));
+    next.macroFlow = deepClone(saved.macroFlow || next.macroFlow);
+    next.sectorLeadership = deepClone(saved.sectorLeadership || next.sectorLeadership);
+    next.scenario = deepClone(saved.scenario || next.scenario);
+    next.fastForwarding = false;
+    next.accumulator = 0;
+    next.lastFrame = 0;
+    next.needsRender = true;
+    next.toasts = [];
+
+    for (const symbol of next.assetList) {
+      this.applySavedAssetState(next.assets[symbol], snapshot.assets[symbol]);
+    }
+
+    next.savedGameMeta = this.buildSavedGameMeta(snapshot);
+    this.clearCanonicalIntradayCachesExcept(next.selected);
+    return true;
+  }
+
+  async restoreSavedGameFromSnapshot(snapshot, emit = true) {
+    await this.resetState(emit, { keepBootActive: true });
+    this.setBootState(
+      {
+        active: true,
+        progress: 0.97,
+        message: "Restoring saved session",
+      },
+      emit,
+    );
+    await this.yieldToBrowser();
+
+    const restored = this.applySavedGameSnapshot(snapshot);
+    if (!restored) return false;
+
+    this.state.boot = {
+      active: false,
+      progress: 1,
+      message: "Simulation ready",
+    };
+    if (emit) this.requestRender(true);
+    return true;
+  }
+
+  setAutoSlow(enabled) {
+    const nextEnabled = !!enabled;
+    this.state.autoSlow = nextEnabled;
+    if (!nextEnabled && this.state.autoSlowRestore != null) {
+      this.state.speed = this.state.autoSlowRestore;
+      this.state.autoSlowRestore = null;
+      this.state.autoSlowUntil = null;
+    }
+    this.saveStoredPreferences({ autoSlow: nextEnabled });
+    this.requestRender(true);
+  }
+
+  saveGame() {
+    const snapshot = this.createSaveSnapshot();
+    const meta = this.writeSavedGameSnapshot(snapshot);
+    if (!meta) {
+      this.addToast("bad", "Save Failed", "Browser storage quota was exceeded.", true);
+      return false;
+    }
+    this.state.savedGameMeta = meta;
+    this.addToast(
+      "good",
+      "Game Saved",
+      `${timeLabel(meta.day, meta.marketMinute, meta.calendarDate)} checkpoint stored.`,
+      true,
+    );
+    return true;
+  }
+
+  async loadSavedGame(emit = true) {
+    const snapshot = this.readSavedGameSnapshot();
+    if (!snapshot) {
+      this.addToast("warn", "No Save Found", "Create a save before loading a session.", true);
+      return false;
+    }
+    const restored = await this.restoreSavedGameFromSnapshot(snapshot, emit);
+    if (!restored) {
+      this.clearSavedGame();
+      this.addToast("bad", "Save Cleared", "Saved data was incompatible and has been removed.", true);
+      await this.resetState(emit);
+      return false;
+    }
+    this.addToast(
+      "good",
+      "Save Loaded",
+      `${this.state.calendarDate} session restored successfully.`,
+      true,
+    );
+    return true;
+  }
+
+  async resetGame(emit = true) {
+    this.clearSavedGame();
+    await this.resetState(emit);
+    this.addToast(
+      "blue",
+      "Fresh Start",
+      `${this.state.calendarDate} opening session is ready.`,
+      true,
+    );
+    return true;
+  }
+
   hydrateBootstrapCache(cache) {
     if (!cache?.dates?.length) return null;
     this.bootstrapHistoricalStore = {
@@ -1693,9 +2199,11 @@ export class TradingEngine {
     };
   }
 
-  async resetState(emit = true) {
+  async resetState(emit = true, options = {}) {
+    const { keepBootActive = false } = options;
     this.jumpToken += 1;
     this.jumpPromise = null;
+    this.clearToastTimers();
     const next = this.createInitialState();
     this.bootstrapHistoricalStore = null;
     this.state = next;
@@ -1907,13 +2415,13 @@ export class TradingEngine {
     );
     this.setBootState(
       {
-        active: false,
+        active: keepBootActive,
         progress: 1,
-        message: "Simulation ready",
+        message: keepBootActive ? "Restoring saved session" : "Simulation ready",
       },
       emit,
     );
-    if (emit) this.requestRender(true);
+    if (!keepBootActive && emit) this.requestRender(true);
   }
 
   maintenanceRate(leverage) {
@@ -3088,108 +3596,6 @@ export class TradingEngine {
     }
     if (bucket) result.push(bucket);
     return result;
-  }
-
-  buildChartSequenceDebugReport({
-    symbol = this.state.selected,
-    startDate = DEFAULT_START_DATE,
-  } = {}) {
-    const asset = this.state.assets?.[symbol];
-    if (!asset) {
-      return {
-        error: `Unknown symbol: ${symbol}`,
-        symbol,
-      };
-    }
-
-    const holidaySet = this.getHolidaySet();
-    const historical = this.getHistoricalCandles(asset);
-    const canonical = this.getCanonicalIntradayCandles(asset);
-    const daily = this.aggregateCandles(asset, SESSION_MINUTES);
-    const minute = this.aggregateCandles(asset, 1);
-
-    const historicalBootstrap = historical.filter((candle) => Number(candle.day || 0) <= 0);
-    const historicalRuntime = historical.filter((candle) => Number(candle.day || 0) > 0);
-    const runtimeDaily = daily.filter((candle) => String(candle.date || "") >= startDate);
-
-    const runtimeDailyDates = runtimeDaily.map((candle) => String(candle.date || ""));
-    const runtimeDateSet = new Set(runtimeDailyDates);
-    const missingRuntimeDates = [];
-    if (runtimeDailyDates.length) {
-      let cursor = runtimeDailyDates[0];
-      const lastDate = runtimeDailyDates[runtimeDailyDates.length - 1];
-      for (let guard = 0; guard < 10000 && cursor <= lastDate; guard += 1) {
-        if (!runtimeDateSet.has(cursor)) missingRuntimeDates.push(cursor);
-        const next = nextOpenDate(cursor, holidaySet);
-        if (next === cursor) break;
-        cursor = next;
-      }
-    }
-
-    const minuteCounts = new Map();
-    for (const candle of minute) {
-      const date = String(candle?.date || "");
-      if (!date || date < startDate) continue;
-      minuteCounts.set(date, (minuteCounts.get(date) || 0) + 1);
-    }
-    const unusualMinuteDays = Array.from(minuteCounts.entries())
-      .map(([date, count]) => {
-        const historicalMatch = historicalRuntime.find((candle) => candle.date === date);
-        const expected =
-          date === this.state.calendarDate && !historicalMatch
-            ? Math.max(1, this.state.marketMinute)
-            : SESSION_MINUTES;
-        return {
-          date,
-          count,
-          expected,
-        };
-      })
-      .filter((item) => item.count !== item.expected);
-
-    return {
-      symbol,
-      selected: this.state.selected,
-      calendarDate: this.state.calendarDate,
-      day: this.state.day,
-      marketMinute: this.state.marketMinute,
-      timeframe: this.state.timeframe,
-      chart: {
-        zoom: this.state.chartZoom,
-        fitToData: this.state.chartFitToData,
-        offset: this.state.chartOffset,
-        followLatest: this.state.chartFollowLatest,
-        anchor: this.state.chartAnchor,
-      },
-      source: {
-        historicalCount: historical.length,
-        bootstrapHistoricalCount: historicalBootstrap.length,
-        runtimeHistoricalCount: historicalRuntime.length,
-        liveMinuteCount: asset.candles.length,
-        canonicalMinuteCount: canonical.length,
-      },
-      runtime: {
-        startDate,
-        firstDailyDate: runtimeDailyDates[0] || null,
-        lastDailyDate: runtimeDailyDates[runtimeDailyDates.length - 1] || null,
-        dailyCount: runtimeDailyDates.length,
-        firstEightDates: runtimeDailyDates.slice(0, 8),
-        lastEightDates: runtimeDailyDates.slice(-8),
-        archivedFirstEight: historicalRuntime.slice(0, 8).map((candle) => candle.date),
-        archivedLastEight: historicalRuntime.slice(-8).map((candle) => candle.date),
-        missingDailyDates: missingRuntimeDates,
-        unusualMinuteDays: unusualMinuteDays.slice(0, 40),
-      },
-    };
-  }
-
-  debugDumpChartSequence(options = {}) {
-    const report = this.buildChartSequenceDebugReport(options);
-    if (typeof console !== "undefined" && console.log) {
-      console.log("[trade-sim] chart-sequence-debug");
-      console.log(JSON.stringify(report, null, 2));
-    }
-    return report;
   }
 
   buildChartAnchor(candle, timeframe = this.state.timeframe) {

@@ -319,6 +319,116 @@ button {
   pointer-events: auto;
 }
 
+.settings-popover-wrap {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+}
+
+.settings-popover {
+  position: absolute;
+  top: calc(100% + 8px);
+  right: 0;
+  width: min(360px, calc(100vw - 24px));
+  border-radius: 14px;
+  border: 1px solid rgba(112, 130, 159, 0.3);
+  background: linear-gradient(180deg, rgba(27, 34, 47, 0.98), rgba(17, 24, 35, 0.98));
+  box-shadow: 0 24px 56px rgba(0, 0, 0, 0.44);
+  padding: 14px;
+  opacity: 0;
+  transform: translateY(-4px);
+  visibility: hidden;
+  pointer-events: none;
+  transition: opacity 140ms ease, transform 140ms ease;
+  z-index: 95;
+}
+
+.settings-popover-wrap.open .settings-popover {
+  opacity: 1;
+  transform: translateY(0);
+  visibility: visible;
+  pointer-events: auto;
+}
+
+.settings-popover-header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.settings-popover-title {
+  font-size: 15px;
+  font-weight: 900;
+  color: #f5f8ff;
+}
+
+.settings-popover-sub {
+  margin-top: 4px;
+  color: #96a8c4;
+  font-size: 12px;
+  line-height: 1.45;
+}
+
+.settings-section {
+  display: grid;
+  gap: 10px;
+  padding-top: 12px;
+  margin-top: 12px;
+  border-top: 1px solid rgba(96, 115, 145, 0.22);
+}
+
+.settings-copy {
+  display: grid;
+  gap: 4px;
+}
+
+.settings-label {
+  font-size: 12px;
+  font-weight: 800;
+  color: #eef4ff;
+}
+
+.settings-hint {
+  font-size: 11px;
+  line-height: 1.5;
+  color: #8ea1bf;
+}
+
+.settings-control-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.settings-chip {
+  min-width: 78px;
+}
+
+.settings-status-card {
+  display: grid;
+  gap: 5px;
+  padding: 10px 12px;
+  border-radius: 10px;
+  border: 1px solid rgba(102, 120, 149, 0.22);
+  background: rgba(15, 21, 31, 0.8);
+  color: #dbe7fb;
+  font-size: 11px;
+  line-height: 1.55;
+}
+
+.settings-action-row {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 8px;
+}
+
+.settings-action-btn {
+  width: auto;
+  height: 36px;
+  padding: 0 12px;
+}
+
 .market-pop-search {
   margin-bottom: 8px;
 }
@@ -499,6 +609,17 @@ button {
 .watch-item:hover,
 .tape-item.symbol:hover {
   transform: translateY(-1px);
+}
+
+.tab-btn:disabled,
+.ghost-btn:disabled,
+.speed-btn:disabled,
+.mini-btn:disabled,
+.book-tab:disabled,
+.toggle:disabled {
+  opacity: 0.48;
+  cursor: not-allowed;
+  transform: none;
 }
 
 .nav-accent {
@@ -2858,6 +2979,16 @@ td .row-actions {
     width: min(98vw, 760px);
     left: max(-6px, calc(-1 * (100vw - 340px) * 0.08));
     max-height: 68vh;
+  }
+
+  .settings-popover {
+    right: auto;
+    left: 0;
+    width: min(96vw, 360px);
+  }
+
+  .settings-action-row {
+    grid-template-columns: 1fr;
   }
 
   .market-table-head,
